@@ -119,9 +119,3 @@ EEPROM Write 61(decimal) Table 393
 EEPROM Read 62(decimal) Table 394
  */
 
-//enable writing to flash
-
-//set flash address
-
-
-//write byte?

@@ -20,6 +20,8 @@
 #include "lcd_5110_lib.h"
 //#include "UART1114.h"
 
+//hwtests
+
 // TODO: insert other include files here
 
 // TODO: insert other definitions and declarations here
@@ -79,7 +81,46 @@ void delay(int ms){
 	return;
 }
 
+void setup48MHzInternalClock(){
+	//DO NOT FORGET TO UNCOMMENT THIS IF YOU WANT FAST MCU
+		//MAKES LPC GO SOVERYFAST
+		LPC_SYSCON->PDAWAKECFG &= (~(1<<7)); //pll powered up after wake (this is a desperate attempt)
 
+		 //set main clock to IRC
+		 LPC_SYSCON->MAINCLKSEL  = 0;
+		 LPC_SYSCON->MAINCLKUEN  = 0;
+		 LPC_SYSCON->MAINCLKUEN  = 1;
+
+
+		LPC_SYSCON->SYSPLLCLKSEL = 0x0; //set sys pll source IRC
+		LPC_SYSCON->SYSPLLCLKUEN	= 0x0; //update clock source (step 1/2)
+		LPC_SYSCON->SYSPLLCLKUEN	= 0x1; //update clock source (step 2/2)
+
+
+		LPC_SYSCON->PDRUNCFG |= (1<<7); //pll should be powered down here
+		//while(!(LPC_SYSCON->PDRUNCFG & (1<<7))); //verify that PLL is powered down.
+
+		LPC_SYSCON->SYSPLLCTRL = 0x23; //unless I fucked up, if no work, try 0x60 for 1to1 ratio
+		//LPC_SYSCON->SYSPLLCTRL = 0x60; //1to1
+		//while(!(LPC_SYSCON->SYSPLLCTRL ==  (0x23)));
+		//now might be reasonable to POWER UP THE FUCKING PLL
+		LPC_SYSCON->PDRUNCFG &= (~(1<<7));
+		//while((LPC_SYSCON->PDRUNCFG & (1<<7))); //verify that PLL is powered.
+
+		GPIOSetValue(1, 13, 0);
+		GPIOSetValue(1, 14, 0);
+		delay(1);
+		while((!(LPC_SYSCON->SYSPLLSTAT)&0x01)); //while PLL not locked, we wait.
+		GPIOSetValue(1, 13, 1);
+		GPIOSetValue(1, 14, 1);
+
+		LPC_SYSCON->MAINCLKSEL = 0x3; //set sys pll output as main clock input
+		LPC_SYSCON->MAINCLKUEN = 0x0; //update clock source, 1/2
+		LPC_SYSCON->MAINCLKUEN = 0x1; //update clock source, 2/2
+
+
+		SystemCoreClock = 48000000; //because without this UART has like 0 idea wtf is going on
+}
 
 void setupClocks(){
 	GPIOSetValue(1, 13, 0);
@@ -97,8 +138,8 @@ void setupClocks(){
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<12); //enable clock to USART
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<13); //enable clock to ADC
-//	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
-	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
+	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
+//	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
 	LPC_SYSCON->PRESETCTRL |= (1 << 2); //remove reset from SSP1
 
 
@@ -110,42 +151,8 @@ void setupClocks(){
 
 
 
-	//DO NOT FORGET TO UNCOMMENT THIS IF YOU WANT FAST MCU
-	//MAKES LPC GO SOVERYFAST
-	/*LPC_SYSCON->PDAWAKECFG &= (~(1<<7)); //pll powered up after wake (this is a desperate attempt)
-
-	 //set main clock to IRC
-	 LPC_SYSCON->MAINCLKSEL  = 0;
-	 LPC_SYSCON->MAINCLKUEN  = 0;
-	 LPC_SYSCON->MAINCLKUEN  = 1;
 
 
-	LPC_SYSCON->SYSPLLCLKSEL = 0x0; //set sys pll source IRC
-	LPC_SYSCON->SYSPLLCLKUEN	= 0x0; //update clock source (step 1/2)
-	LPC_SYSCON->SYSPLLCLKUEN	= 0x1; //update clock source (step 2/2)
-
-
-	LPC_SYSCON->PDRUNCFG |= (1<<7); //pll should be powered down here
-	//while(!(LPC_SYSCON->PDRUNCFG & (1<<7))); //verify that PLL is powered down.
-
-	LPC_SYSCON->SYSPLLCTRL = 0x23; //unless I fucked up, if no work, try 0x60 for 1to1 ratio
-	//LPC_SYSCON->SYSPLLCTRL = 0x60; //1to1
-	//while(!(LPC_SYSCON->SYSPLLCTRL ==  (0x23)));
-	//now might be reasonable to POWER UP THE FUCKING PLL
-	LPC_SYSCON->PDRUNCFG &= (~(1<<7));
-	//while((LPC_SYSCON->PDRUNCFG & (1<<7))); //verify that PLL is powered.
-
-	GPIOSetValue(1, 13, 0);
-	GPIOSetValue(1, 14, 0);
-	delay(1);
-	while((!(LPC_SYSCON->SYSPLLSTAT)&0x01)); //while PLL not locked, we wait.
-	GPIOSetValue(1, 13, 1);
-	GPIOSetValue(1, 14, 1);
-
-	LPC_SYSCON->MAINCLKSEL = 0x3; //set sys pll output as main clock input
-	LPC_SYSCON->MAINCLKUEN = 0x0; //update clock source, 1/2
-	LPC_SYSCON->MAINCLKUEN = 0x1; //update clock source, 2/2
-*/
 
 
 	/*GPIOSetValue(1, 13, 0);
@@ -393,106 +400,46 @@ int main(void) {
 	GPIOSetDir(1, 27, 1);
 
 	setupClocks();
+	//setup48MHzInternalClock(); //gotta go fast
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
-		l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0);
+		l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd
 		//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
 	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?)
 		//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
 		//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
 
 	int i=0, j=0;
-	unsigned long uptime=0;
+
 	char temporaryString1[40], temporaryString2[40];
 	GPIOSetValue(1, 13, 0);
 
-	l11uxx_uart_init(115200); //currently it is always 115200
+	l11uxx_uart_init(9600);
+	//l11uxx_uart_init(115200);
 	l11uxx_uart_pinSetup(47, 46); //set up to CH340
 	l11uxx_uart_Send("\r\nAyy lmao!\n\r");
 
+	HW_test_uart0_loopback(); //no return
+
+	//l11uxx_adc_init(char adcNumber, char freerunning, char clkdiv, char bits)
+	l11uxx_adc_pinSetup(32);
+	l11uxx_adc_init(0, 1,  10, 10);
+
+	//while(1) HW_test_ADC();
+
+
+
 	l11uxx_uart_Send("LCD activity\n\r");
+	 //HW_test_lcd_5110();
+	HW_test_lcd_5110_with_uptime(); //no return
+	//HW_test_ILI9341();
+	l11uxx_uart_Send("LCD activity done\n\r");
 
 
 
+		while(1); //I don't want to continue.
 
-	lcd_5110_init();
-	l11uxx_uart_Send(" 5110 init done\n\r");
-	delay(100);
-		lcd_5110_clear_framebuffer();
-		l11uxx_uart_Send(" 5110 framebuffer clear\n\r");
-		lcd_5110_printString(0,0, "luv <3");
-		lcd_5110_printString(2,2, "Kitties");
-		lcd_5110_printString(6,3, "b");
-		lcd_5110_printString(4,4, "cute!");
-		//lcd_5110_printString(0,0, "EEEEEE");
-		l11uxx_uart_Send(" 5110 framebuffer setup\n\r");
-		lcd_5110_redraw();
-		l11uxx_uart_Send(" 5110 redrawn\n\r");
-
-	//ILI9341_GPIO_init();
-	//ILI9341_begin();
-
-	//ILI9341_drawPixel(10, 10, 0); //black????
-	//ILI9341_drawPixel(12, 12, 0xFF);
-	//ILI9341_drawPixel(14, 14, 0xFFFF); //hellawhite
-
-//	i=0;
-//	while(i<5){
-//		while(j<10){
-//			//ILI9341_drawPixel(j+22, i+10, 0xFFFF);
-//			ILI9341_drawPixel(j+22, i+10, 0x00FF);
-//			j++;
-//		}
-//		i++;
-//		j=0;
-//	}
-//
-//	ILI9341_drawFastVLine(10, 150, 100, 0x0FF0);
-//	ILI9341_drawFastVLine(11, 150, 100, 0x0FF0);
-//	ILI9341_drawFastVLine(12, 150, 100, 0x0FF0);
-//	ILI9341_drawFastVLine(13, 150, 100, 0x0FF0);
-//	ILI9341_drawFastVLine(14, 150, 100, 0x0FF0);
-//
-//	//ILI9341_fillScreen(ILI9341_Color565(0,0,255));
-//	//ILI9341_fillScreen(ILI9341_Color565(0,0,0));
-//
-//
-//
-//	ILI9341_fillRect(0, 0, 20, 20, ILI9341_Color565(255,0,0));
-//	ILI9341_fillRect(10, 0, 10, 15, ILI9341_Color565(0,255,0));
-//	ILI9341_fillRect(0, 0, 10, 10, ILI9341_Color565(0,0,255));
-//	const unsigned char navyPasta[] = {"What the fuck did you just fucking say about me, you little bitch? I’ll have you know I graduated top of my class in the Navy Seals, and I’ve been involved in numerous secret raids on Al-Quaeda, and I have over 300 confirmed kills. I am trained in gorilla warfare and I’m the top sniper in the entire US armed forces. You are nothing to me but just another target. I will wipe you the fuck out with precision the likes of which has never been seen before on this Earth, mark my fucking words. You think you can get away with saying that shit to me over the Internet? Think again, fucker. As we speak I am contacting my secret network of spies across the USA and your IP is being traced right now so you better prepare for the storm, maggot. The storm that wipes out the pathetic little thing you call your life. You’re fucking dead, kid. I can be anywhere, anytime, and I can kill you in over seven hundred ways, and that’s just with my bare hands. Not only am I extensively trained in unarmed combat, but I have access to the entire arsenal of the United States Marine Corps and I will use it to its full extent to wipe your miserable ass off the face of the continent, you little shit. If only you could have known what unholy retribution your little “clever” comment was about to bring down upon you, maybe you would have held your fucking tongue. But you couldn’t, you didn’t, and now you’re paying the price, you goddamn idiot. I will shit fury all over you and you will drown in it. You’re fucking dead, kiddo."};
-//
-//	for(i=0; i<40; i++){
-//		ILI9341_printString_bg(0, i*8, ILI9341_Color565(0,0,0), ILI9341_Color565(255,255,255), &navyPasta[40*i]);
-//		ILI9341_drawFastHLine(0, i*8+7, 240, ILI9341_Color565(255,255,255));
-//	}
-//
-//
-//
-//	ILI9341_fillRect(100, 100, 50, 50, ILI9341_Color565(255,0,0));
-//	ILI9341_fillRect(100, 150, 50, 50, ILI9341_Color565(0,255,0));
-//	ILI9341_fillRect(100, 200, 50, 50, ILI9341_Color565(0,0,255));
-//
-//	drawPokey(160, 120);
-
-
-
-//	lcd_5110_setAddressX(0);
-//	lcd_5110_setAddressY(0);
-
-	//symbolism
-//	lcd_5110_arc(41,10,10,200,160,1);
-//	lcd_5110_arc(26,40,7,0,360,1);
-//	lcd_5110_arc(56,40,7,0,360,1);
-//	lcd_5110_line_polar(41, 10, 10, 3, 0, 1);
-//	//lcd_5110_line(30,0,30,23,1); //fix this line thing
-//	lcd_5110_line_polar(35, 18, 0, 20, 180, 1);
-//	lcd_5110_line_polar(47, 18, 0, 20, 180, 1);
-//
-//	lcd_5110_redraw();
-		l11uxx_uart_Send("LCD activity done\n\r");
 
 		GPIOSetValue(1, 13, 1);
 		GPIOSetValue(1, 14, 0);
@@ -501,38 +448,7 @@ int main(void) {
 
 
 
-		i=0;
-	    while(1){
-	    	if(GPIOGetValue(0, 2))GPIOSetValue(1, 14, 0);
-	    	else if(GPIOGetValue(0, 7))GPIOSetValue(1, 14, 0);
-	    	else GPIOSetValue(1, 14, 1);
-	    	i++;
-	    	if(i>1){
-	    		GPIOSetValue(1, 13, 1);
-	    		i=0;
-	    		uptime++;
-	    	} else GPIOSetValue(1, 13, 0);
-	    	delay(250);
-	    	//GPIOSetValue(1, 27, 0);
-	    	delay(250);
-	    	//GPIOSetValue(1, 27, 1);
 
-	    	strcpy(temporaryString1, "");
-	    	if(uptime>4294967294)uptime=0;
-	    	if(uptime<1000000000) strcat(temporaryString1, "0");
-	    	if(uptime<100000000) strcat(temporaryString1, "0");
-	    	if(uptime<10000000) strcat(temporaryString1, "0");
-	    	if(uptime<1000000) strcat(temporaryString1, "0");
-	    	if(uptime<100000) strcat(temporaryString1, "0");
-	    	if(uptime<10000) strcat(temporaryString1, "0");
-	    	if(uptime<1000) strcat(temporaryString1, "0");
-	    	if(uptime<100) strcat(temporaryString1, "0");
-	    	if(uptime<10) strcat(temporaryString1, "0");
-	    	uitoa(uptime, temporaryString2,10); //lol itoa makes it to signed int, uitoa makes to unsigned
-	    	strcat(temporaryString1, temporaryString2);
-	    	lcd_5110_printString(2,0, temporaryString1);
-	    	lcd_5110_redraw();
-	    }
 
 
 
@@ -574,9 +490,7 @@ int main(void) {
 
 
 
-	//l11uxx_adc_init(char adcNumber, char freerunning, char clkdiv, char bits)
-	l11uxx_adc_pinSetup(32);
-	l11uxx_adc_init(0, 1,  10, 10);
+
 
 
 	//guitarpants pin 1_24 - 32B0 (pin 21), mat0

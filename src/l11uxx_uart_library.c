@@ -10,6 +10,11 @@
 #include "LPC11Uxx.h"
 #endif
 
+#define L11UXX_UART_RX_BUFFER_LEN 200
+
+char l11uxx_uart_rx_buffer[L11UXX_UART_RX_BUFFER_LEN];
+int l11uxx_uart_rx_buffer_current_index = 0;
+
 void l11uxx_uart_pinSetup_unset(int pin){ //uses physical pin numbers
 	//if(UARTNumberNumber == 0){
 		//setting up Tx
@@ -59,13 +64,21 @@ int l11uxx_uart_init(uint32_t baudrate){ //currently it is always 115200
 	LPC_SYSCON->SYSAHBCLKCTRL |= (1<<12);
 	LPC_SYSCON->UARTCLKDIV = 0x01;        //UART clock
 	DL = (SystemCoreClock * LPC_SYSCON->SYSAHBCLKDIV) / (16 * baudrate * LPC_SYSCON->UARTCLKDIV);
-	   /* char buffer[10];
+	   	char buffer[10];
 	    itoa(DL, buffer, 10);
-	    debugMessage(buffer);*/
+	    printf(buffer);
+	    printf(";");
+	   DL = ((DL*125)+20) / 128;  //this is necessary, maybe because internal clock is so shit?
+	//   itoa(DL, buffer, 10);
+//	   		    printf(buffer);
+	  // DL = DL/128;
 
+		    itoa(DL, buffer, 10);
+		    printf(buffer);
 	//let's hardcode this to 115200
 	//DL=37; //yeah, at 48MHz maybe?, almost 19200 w/o xtal
-	DL=6; //115200 w/o xtal
+	//DL=6; //115200 w/o xtal, 12MHz, works well
+	//DL=76; //9600 w/o xtal, 12MHz,
 	LPC_USART->FDR = (12 << 4) | 1; //DivAddVal = 1, MulVal = 12
 
 	LPC_USART->LCR = 0b10000011;  //  8-bit character length, DLAB enable ( DLAB = 1)
@@ -111,20 +124,20 @@ int l11uxx_uart_Send(char text[]){
 	return 1; //everything went OK
 }
 
-/*
-void l11uxx_uart_Receive(char *saveTo){ //This function drains the UART Rx buffer to char array it's given
+//NB! change uart to usart cause cmsis2
+/*void l11uxx_uart_Receive(char *saveTo){ //This function drains the UART Rx buffer to char array it's given
 	//we're gonna ignore that "saveTo" now, but I won't remove it from top yet cause I don't want to break rest of code
-	char *saveTo2=&UARTRxBuffer;
+	char *saveTo2=&l11uxx_uart_rx_buffer;
 
 
 	while ((LPC_UART->LSR & 0x01)){//while data available
-			*(saveTo2+UARTRxBufferPointer) = LPC_UART->RBR;
-			if(!(*(saveTo2+UARTRxBufferPointer)==0))UARTRxBufferPointer++; //I don't want array filled with zeros.
+			*(saveTo2+l11uxx_uart_rx_buffer_current_index) = LPC_UART->RBR;
+			if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
 			if(!((LPC_UART->LSR & 0x01))){ //oh no, are we out of data?
 				//let's wait, maybe slave is slow
 				//delay(1); //uncomment if delay function available
 			}
 		}
-	*(saveTo+UARTRxBufferPointer+1)=0; //cause I want the string to end here
+	*(saveTo2+l11uxx_uart_rx_buffer_current_index+1)=0; //cause I want the string to end here
 	return;
 }*/
