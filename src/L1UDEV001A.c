@@ -393,6 +393,9 @@ void txRoutine(){
 }
 
 int main(void) {
+
+	printf("Hello, this is app.");
+
 	GPIOSetDir(0, 2, 0); //set input
 	GPIOSetDir(0, 7, 0); //set input
 	GPIOSetDir(1, 13, 1);

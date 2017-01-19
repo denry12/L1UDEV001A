@@ -64,17 +64,23 @@ int l11uxx_uart_init(uint32_t baudrate){ //currently it is always 115200
 	LPC_SYSCON->SYSAHBCLKCTRL |= (1<<12);
 	LPC_SYSCON->UARTCLKDIV = 0x01;        //UART clock
 	DL = (SystemCoreClock * LPC_SYSCON->SYSAHBCLKDIV) / (16 * baudrate * LPC_SYSCON->UARTCLKDIV);
-	   	char buffer[10];
-	    itoa(DL, buffer, 10);
-	    printf(buffer);
-	    printf(";");
-	   DL = ((DL*125)+20) / 128;  //this is necessary, maybe because internal clock is so shit?
-	//   itoa(DL, buffer, 10);
-//	   		    printf(buffer);
-	  // DL = DL/128;
 
-		    itoa(DL, buffer, 10);
-		    printf(buffer);
+
+
+	//char buffer[10];
+	    //itoa(DL, buffer, 10);
+	    //printf(buffer);
+	    //printf(";");
+
+	    DL = ((DL*125)+20) / 128;  //this is necessary, maybe because internal clock is so shit?
+
+		    //itoa(DL, buffer, 10);
+		    //printf(buffer);
+
+
+
+
+
 	//let's hardcode this to 115200
 	//DL=37; //yeah, at 48MHz maybe?, almost 19200 w/o xtal
 	//DL=6; //115200 w/o xtal, 12MHz, works well
