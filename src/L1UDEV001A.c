@@ -146,15 +146,6 @@ void setupClocks(){
 	LPC_SYSCON->UARTCLKDIV = 1; //USART clock divider
 
 
-
-
-
-
-
-
-
-
-
 	/*GPIOSetValue(1, 13, 0);
 	GPIOSetValue(1, 14, 1);*/
 	return;
@@ -407,11 +398,11 @@ int main(void) {
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
-		l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd
-		//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
+	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd & ext flash
+	//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
 	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?)
-		//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
-		//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
+	//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
+	//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
 
 	int i=0, j=0;
 

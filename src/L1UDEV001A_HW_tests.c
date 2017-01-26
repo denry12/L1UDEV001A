@@ -42,6 +42,11 @@ void HW_test_uart0_loopback(){
 //
 //}
 
+
+//void HW_test_flashDump(){ //not sure where to dump, uart?
+//
+//}
+
 void HW_test_ADC(){
 	//reads back all ADC pin values and spews them to debugmessage
 	//ADC must be set up

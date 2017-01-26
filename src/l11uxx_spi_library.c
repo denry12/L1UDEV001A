@@ -161,3 +161,14 @@ int l11uxx_spi_receiveByte(int SPINumber){
 	return data;
 
 }
+
+int l11uxx_spi_checkIfBusy(int SPINumber){
+
+	if(SPINumber == 0){
+		if (LPC_SSP0->SR & (0x1 << 4)) return 1; //very busy, no disturb
+	}
+	else if(SPINumber == 1){
+		if (LPC_SSP1->SR & (0x1 << 4)) return 1; //very busy, no disturb
+	}
+	return 0; //not busy
+}
