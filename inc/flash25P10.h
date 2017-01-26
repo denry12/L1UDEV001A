@@ -8,7 +8,7 @@
 #ifndef FLASH25P10_H_
 #define FLASH25P10_H_
 #ifdef __USE_CMSIS
-#include "LPC11xx.h"
+#include "LPC11Uxx.h"			/* LPC11Uxx Peripheral Registers */
 #endif
 #include "gpio.h"
 

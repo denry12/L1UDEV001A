@@ -55,7 +55,7 @@ void l11uxx_uart_pinSetup(int txPin, int rxPin){ //uses physical pin numbers
 
 
 
-int l11uxx_uart_init(uint32_t baudrate){ //currently it is always 115200
+int l11uxx_uart_init(uint32_t baudrate){
 	//LPC_IOCON->PIO1_7|=0x1; //47 - TX to mating part
 	//LPC_IOCON->PIO1_6|=0x1; //46 - RX from mating part
 
@@ -98,7 +98,7 @@ int l11uxx_uart_init(uint32_t baudrate){ //currently it is always 115200
 	//RX interrupt setup
 	LPC_USART->IER = (1<<2); //RXLIE - RX Line Interrupt Enable
 	LPC_USART->FCR |= (0x3<<6); //trigger level 3, 14 characters in RX buffer
-	//NVIC_EnableIRQ(USART_IRQn);
+	NVIC_EnableIRQ(UART_IRQn);
 
 	return 1;
 }
@@ -132,7 +132,7 @@ int l11uxx_uart_Send(char text[]){
 
 void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to SW buffer
 	while ((LPC_USART->LSR & 0x01)){//while data available
-			*(&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+			*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
 			//if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
 			if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
 				//let's wait, maybe slave is slow
@@ -141,6 +141,16 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 			if(l11uxx_uart_rx_buffer_current_index<L11UXX_UART_RX_BUFFER_LEN) l11uxx_uart_rx_buffer_current_index++;
 			//else; //dang, we're full
 		}
-	*(&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+1)=0; //cause I want the string to end here
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+1)=0; //cause I want the string to end here
 	return;
+}
+
+void l11uxx_uart_clearRxBuffer(){
+	l11uxx_uart_rx_buffer_current_index=0;
+	return;
+}
+
+void USART_IRQHandler(void){
+//	debugMessage("UARTInterrupt fired!"); //this may cause me to lose data.
+	l11uxx_uart_sendToBuffer();
 }

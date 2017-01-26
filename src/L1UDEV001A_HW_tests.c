@@ -18,7 +18,7 @@
 void HW_test_debugmessage(char text[]){
 	//comment this out if you do not want to
 	//use UART in HW tests where it is not critical
-	l11uxx_uart_Send(text);
+	//l11uxx_uart_Send(text);
 	return;
 }
 
@@ -125,6 +125,129 @@ void HW_test_lcd_5110(){
 	//symbolism end
 	//lcd5110 testsection end
 
+		return;
+}
+
+
+void HW_test_lcd_5110_welcome(){
+	//spi needs to be set up. One working example:
+	//l11uxx_spi_pinSetup(1, 38, 26, 13);
+	//l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0);
+
+	int i;
+	//lcd5110 testsection start
+	GPIOSetValue(1, 27, 1); //BL off
+	GPIOSetDir(1, 27, 1);
+	GPIOSetValue(1, 27, 1); //BL off
+	lcd_5110_init();
+	lcd_5110_clear_framebuffer();
+	lcd_5110_redraw();
+	delay(1000);
+
+	GPIOSetValue(1, 13, 0);
+	delay(500);
+	GPIOSetValue(1, 14, 0);
+	delay(500);
+	//fade backlight in
+	for(i=0; i<1000; i++){
+		delay_us(i);
+		GPIOSetValue(1, 27, 1); //BL off
+		delay_us(1000-i);
+		GPIOSetValue(1, 27, 0); //BL on
+
+
+	}
+	delay(500);
+
+	GPIOSetValue(1, 27, 0); //BL on
+
+	//blink backlight off twice
+	delay(100);
+	GPIOSetValue(1, 27, 1); //BL off
+	delay(20);
+	GPIOSetValue(1, 27, 0); //BL on
+	delay(100);
+	GPIOSetValue(1, 27, 1); //BL off
+	delay(20);
+	GPIOSetValue(1, 27, 0); //BL on
+	delay(200);
+	//enable other leds
+
+	//Power: Online
+	//L1UDEV001A starting
+	//...........
+	//
+	//random loadings
+	//blank
+
+	//Welcome to the future.
+	//	-JDP
+	lcd_5110_printAsConsole("Power: Online\n\r", 1);
+	lcd_5110_redraw();
+	delay(500);
+	lcd_5110_printAsConsole("L1UDEV boot.\n\r", 1);
+	delay(500);
+	for(i=0; i<13; i++){
+		lcd_5110_printAsConsole(".", 1);
+		delay(100);
+
+	}
+
+	lcd_5110_printAsConsole("\n\r", 1);
+	lcd_5110_printAsConsole("ROM check:", 1);
+	delay(500);
+	lcd_5110_printAsConsole(" OK\n\r", 1);
+	delay(300);
+	lcd_5110_printAsConsole("Setting \n\rnodes:", 1);
+	delay(250);
+	l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
+	l11uxx_uart_init(115200);
+	l11uxx_uart_Send("AT+RST\n\r");
+	delay(250);
+	l11uxx_uart_Send("AT+RST\n\r");
+	lcd_5110_printAsConsole(" OK\n\r", 1);
+	delay(300);
+	lcd_5110_printAsConsole("Initializing \n\rtables:", 1);
+	delay(500);
+	lcd_5110_printAsConsole(" OK\n\r", 1);
+	delay(300);
+
+	lcd_5110_printAsConsole("\n\r", 1);
+	lcd_5110_printAsConsole("    |", 0);
+	lcd_5110_printString(9, 5, "|");
+	for(i=0; i<4; i++){
+			lcd_5110_printAsConsole("=", 1);
+			delay(700);
+
+		}
+
+	delay(500);
+	lcd_5110_clear_framebuffer();
+	lcd_5110_redraw();
+	delay(1000);
+
+
+	lcd_5110_consolePosition_jump(0,0);
+	lcd_5110_printAsConsole("Welcome.\n\r", 1);
+	delay(1000);
+	lcd_5110_printAsConsole("This is ", 1);
+	lcd_5110_printAsConsole("\n\r", 0);
+	lcd_5110_printAsConsole("the future.\n\r", 1);
+	delay(500);
+	lcd_5110_printAsConsole("          -JDP\n\r", 1);
+
+	delay(1000);
+
+	lcd_5110_printString(0, 5, ">");
+	lcd_5110_redraw();
+	while(1){
+		lcd_5110_printString(1, 5, "_");
+		lcd_5110_redraw();
+		delay(500);
+		lcd_5110_printString(1, 5, "    ");
+		lcd_5110_redraw();
+		delay(500);
+	}
 		return;
 }
 

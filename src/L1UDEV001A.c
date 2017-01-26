@@ -61,7 +61,9 @@ void delay_us(int us){
 	//maybe I can remove these?
 
 	//RELEVANT TO CLOCK, if 12MHz clock, set to 11. If 48MHz clock, set to 47
-	LPC_CT16B0->PR = 11; //16,000,000 / 16 = 1us. Incremented every PCLK.
+	if(SystemCoreClock == 48000000) LPC_CT16B0->PR = 47;
+	else LPC_CT16B0->PR = 11; //16,000,000 / 16 = 1us. Incremented every PCLK.
+
 	LPC_CT16B0->MCR = 0x5; //stop on MR0 match. Interrupt, no reset
 
 
@@ -386,21 +388,50 @@ void txRoutine(){
 
 int flash_service_routine(){
 	while(1){
-		l11uxx_uart_Send("FLASH ERASE @ ");
-		//l11uxx_uart_Send();
+		debugOutput("FLASH ERASE @ ");
+		//debugOutput();
 
 
-		l11uxx_uart_Send("Flash write go @ ");
-		//l11uxx_uart_Send();
-		l11uxx_uart_Send("; ");
-		//l11uxx_uart_Send();
-		l11uxx_uart_Send(" bytes \n\r");
+		debugOutput("Flash write go @ ");
+		//debugOutput();
+		debugOutput("; ");
+		//debugOutput();
+		debugOutput(" bytes \n\r");
 
-		l11uxx_uart_Send("Flash write end\n\r");
+		debugOutput("Flash write end\n\r");
 
-		l11uxx_uart_Send("Read @ \n\r");
+		debugOutput("Read @ \n\r");
 	}
 	return 0;
+}
+
+int debugOutput(char message[]){
+	//!!!printf version
+		//remove last char, ONLY if it's \n or \r
+		//this is done for "printf", cause it seems to consider them equal, adding unnecessary empty lines
+		/*char cutBuffer[strlen(text)];
+		strcpy(cutBuffer, text);
+		char *p = cutBuffer;
+		if(((p[strlen(p)-1]) == '\n') || ((p[strlen(p)-1]) == '\r')) p[strlen(p)-1] = 0;
+		printf(cutBuffer);*/
+
+	//UART version
+	//l11uxx_uart_Send(message);
+
+	//violent uart action
+	//bitbangUARTmessage(message);
+
+
+
+	//why is there lcd? this why!
+	//static int currentLine=0;
+	//if(currentLine<5) currentLine++;;
+	//lcd_5110_printString(0,currentLine, message);
+
+
+	lcd_5110_printAsConsole(message, 1);
+	//lcd_5110_redraw();
+	return 1;
 }
 
 int main(void) {
@@ -414,7 +445,7 @@ int main(void) {
 	GPIOSetDir(1, 27, 1);
 
 	setupClocks();
-	//setup48MHzInternalClock(); //gotta go fast
+	setup48MHzInternalClock(); //gotta go fast
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
@@ -429,10 +460,35 @@ int main(void) {
 	char temporaryString1[40], temporaryString2[40];
 	GPIOSetValue(1, 13, 0);
 
-	l11uxx_uart_init(9600);
-	//l11uxx_uart_init(115200);
-	l11uxx_uart_pinSetup(47, 46); //set up to CH340
-	l11uxx_uart_Send("\r\nAyy lmao!\n\r");
+	//l11uxx_uart_init(9600);
+	l11uxx_uart_init(115200);
+	//l11uxx_uart_pinSetup(47, 46); //set up to CH340
+	l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
+	l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
+
+	HW_test_lcd_5110_welcome();
+
+	lcd_5110_init();
+	delay(100);
+	lcd_5110_clear_framebuffer();
+
+	//debugOutput("\r\nAyy lmao!\n\r");
+	debugOutput("L1UDEV001A starting.\n\n\r");
+	delay(500);
+	debugOutput("Console output enabled.\n\r");
+	delay(500);
+	debugOutput("Brought to you by\n\r");
+	delay(500);
+	debugOutput("Jens Dender\n\r");
+	delay(500);
+	debugOutput("Productions.\n\r");
+
+
+
+
+
+
+
 
 	HW_test_uart0_loopback(); //no return
 	flash_service_routine();
@@ -444,11 +500,11 @@ int main(void) {
 
 
 
-	l11uxx_uart_Send("LCD activity\n\r");
+	debugOutput("LCD activity\n\r");
 	 //HW_test_lcd_5110();
 	HW_test_lcd_5110_with_uptime(); //no return
 	//HW_test_ILI9341();
-	l11uxx_uart_Send("LCD activity done\n\r");
+	debugOutput("LCD activity done\n\r");
 
 
 
@@ -470,7 +526,7 @@ int main(void) {
 
 
 
-		l11uxx_uart_Send("NRF setup\n\r");
+		debugOutput("NRF setup\n\r");
 	nrf24l01_pin_init();
 	delay(100);
 	nrf24l01_pwrupDisable(); //lol otherwise can't write registers?
@@ -488,12 +544,12 @@ int main(void) {
 
 
 
-	l11uxx_uart_Send("NRF setup done\n\r");
+	debugOutput("NRF setup done\n\r");
 
 	if(!(GPIOGetValue(0, 2))) txRoutine();
 	if(!(GPIOGetValue(0, 7)))  rxRoutine();
 
-	l11uxx_uart_Send("You missed your chance for NRF activity. Good job...\n\r");
+	debugOutput("You missed your chance for NRF activity. Good job...\n\r");
 
 
 

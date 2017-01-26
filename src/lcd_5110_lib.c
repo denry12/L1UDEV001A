@@ -563,10 +563,26 @@ void lcd_5110_printMemory(){
 	return;
 }
 
-void lcd_5110_printString(int charColumn, int charRow, char text[10]){ //
+void lcd_5110_shiftRowsUp(int rows){
+	int i;
+	int j;
+	for(j=0; j<5; j=j+rows){
+		for(i=0; i<83; i++){
+			lcd_5110_pixels[i][j]=lcd_5110_pixels[i][j+1];
+		}
+	}
+	for(i=0; i<83; i++){
+				lcd_5110_pixels[i][j]=0;
+	}
+	//clear last line
+
+}
+
+void lcd_5110_printString(int charColumn, int charRow, char text[20]){ //
 	//note that charColumn is for 1602 style addressing, characterColumn is column of character (0 to 4)
 	int characterNumber=0;
 	int characterColumn=0;
+	char initialColumn = charColumn; //for \r
 	//int debugvalue=0;
 	while(text[characterNumber] != 0){
 		//lcd_5110_pixels[84][6];
@@ -585,6 +601,53 @@ void lcd_5110_printString(int charColumn, int charRow, char text[10]){ //
 			characterColumn=0;
 
 		}
+	}
+	return;
+}
+
+
+char lcd_5110_console_cursorRow=0; //y
+char lcd_5110_console_cursorColumn=0; //x
+
+void lcd_5110_consolePosition_jump(char posColumn, char posRow){
+	lcd_5110_console_cursorRow=posRow;
+	lcd_5110_console_cursorColumn=posColumn;
+	return;
+}
+
+void lcd_5110_printAsConsole(char text[40], char violentUpdate){
+
+	char currentCharacterOfMessage=0;
+	char oneCharMessage[2];
+	oneCharMessage[1] = 0;
+
+	char lengthOfMessage = strlen(text);
+
+	while(currentCharacterOfMessage < lengthOfMessage){
+
+		if(text[currentCharacterOfMessage] == '\n'){
+			lcd_5110_console_cursorRow++;
+			if(lcd_5110_console_cursorRow>5){
+				lcd_5110_shiftRowsUp(1);
+				lcd_5110_console_cursorRow = 5;
+				//cursorColumn = 0;
+			}
+		} else if (text[currentCharacterOfMessage] == '\r'){
+			lcd_5110_console_cursorColumn = 0;
+
+		}
+		else {
+			oneCharMessage[0] = text[currentCharacterOfMessage];
+			lcd_5110_printString(lcd_5110_console_cursorColumn, lcd_5110_console_cursorRow, oneCharMessage);
+			lcd_5110_console_cursorColumn++;
+			if(lcd_5110_console_cursorColumn > 13){
+				if(lcd_5110_console_cursorRow<5) lcd_5110_console_cursorRow++;
+				else lcd_5110_shiftRowsUp(1);
+				lcd_5110_console_cursorColumn=0;
+			}
+		}
+		currentCharacterOfMessage++;
+		if(violentUpdate) lcd_5110_redraw(); //update after each character
 	}
 	return;
 }

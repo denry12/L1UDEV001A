@@ -161,7 +161,7 @@ int flash25P10_readStatusRegister(){
 
 }
 
-int flash25P10_readDataBytes(int startingAddress, int bytesToRead, uint8_t *dataArray){
+int flash25P10_readDataBytes(int startingAddress, int bytesToRead, char *dataArray){
 	int bytesRead=0;
 	flash25P10_enableCS();
 	flash25P10_sendByte(0b00000011);
@@ -213,7 +213,7 @@ int flash25P10_eraseSector(long addressOfSector){ //any address in sector is val
 	return 1;
 }
 
-int flash25P10_writeDataBytes(int startingAddress, int bytesToWrite, uint8_t *dataArray, int verify){
+int flash25P10_writeDataBytes(int startingAddress, int bytesToWrite, char *dataArray, int verify){
 	int bytesWritten=0;
 	int sectorAddress2;
 	int sectorAddress1;

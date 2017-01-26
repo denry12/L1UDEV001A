@@ -35,12 +35,24 @@
 
 char esp_8266_cipmux_latest = 0; //only modify via special function
 
+
+//HW specific code starts here
 int esp8266_sendCommandAndWaitOK(char command[]){
+	l11uxx_uart_clearRxBuffer();
+
+	l11uxx_uart_sendToBuffer();
+	return 0; //very broken
+	return 1; //is OK
+}
+
+int esp8266_sendCommandAndReadResponse(char command[]){
 
 
 	return 0; //very broken
 	return 1; //is OK
 }
+
+//HW specific code ends here
 
 int esp8266_isAlive(){
 	if(esp8266_sendCommandAndWaitOK("AT")) return 1; //is OK;
@@ -74,7 +86,7 @@ int esp8266_setMode(int mode){
 int esp8266_setCipmux(int isMultichannel){
 	//if 1, then multiple connections
 	//if 0, is single connection
-	esp_8266_cipmux_latest = isMultiChannel;
+	esp_8266_cipmux_latest = isMultichannel;
 
 	return 0; //very broken
 	return 1; //is OK
@@ -99,13 +111,13 @@ int esp8266_getOwnIP(char *IPoutput){
 
 
 int esp8266_closeConnection(int id){
-	if(esp_8266_cipmux_latest == 0) ;
-	else ;
+	//if(esp_8266_cipmux_latest == 0) ;
+	//else ;
 	return 0; //very broken
 	return 1; //is OK
 }
 
-int esp8266_openConnection(int id, char[4] type, char ip[16],int port){
+int esp8266_openConnection(int id, char type[4], char ip[16], int port){
 	return 0; //very broken
 	return 1; //is OK
 }
