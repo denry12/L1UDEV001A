@@ -383,9 +383,29 @@ void txRoutine(){
 	}
 }
 
+
+int flash_service_routine(){
+	while(1){
+		l11uxx_uart_Send("FLASH ERASE @ ");
+		//l11uxx_uart_Send();
+
+
+		l11uxx_uart_Send("Flash write go @ ");
+		//l11uxx_uart_Send();
+		l11uxx_uart_Send("; ");
+		//l11uxx_uart_Send();
+		l11uxx_uart_Send(" bytes \n\r");
+
+		l11uxx_uart_Send("Flash write end\n\r");
+
+		l11uxx_uart_Send("Read @ \n\r");
+	}
+	return 0;
+}
+
 int main(void) {
 
-	printf("Hello, this is app.");
+	//printf("Hello, this is app.");
 
 	GPIOSetDir(0, 2, 0); //set input
 	GPIOSetDir(0, 7, 0); //set input
@@ -415,7 +435,7 @@ int main(void) {
 	l11uxx_uart_Send("\r\nAyy lmao!\n\r");
 
 	HW_test_uart0_loopback(); //no return
-
+	flash_service_routine();
 	//l11uxx_adc_init(char adcNumber, char freerunning, char clkdiv, char bits)
 	l11uxx_adc_pinSetup(32);
 	l11uxx_adc_init(0, 1,  10, 10);

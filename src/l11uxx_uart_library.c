@@ -130,20 +130,17 @@ int l11uxx_uart_Send(char text[]){
 	return 1; //everything went OK
 }
 
-//NB! change uart to usart cause cmsis2
-/*void l11uxx_uart_Receive(char *saveTo){ //This function drains the UART Rx buffer to char array it's given
-	//we're gonna ignore that "saveTo" now, but I won't remove it from top yet cause I don't want to break rest of code
-	char *saveTo2=&l11uxx_uart_rx_buffer;
-
-
-	while ((LPC_UART->LSR & 0x01)){//while data available
-			*(saveTo2+l11uxx_uart_rx_buffer_current_index) = LPC_UART->RBR;
-			if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
-			if(!((LPC_UART->LSR & 0x01))){ //oh no, are we out of data?
+void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to SW buffer
+	while ((LPC_USART->LSR & 0x01)){//while data available
+			*(&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+			//if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
+			if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
 				//let's wait, maybe slave is slow
-				//delay(1); //uncomment if delay function available
+				delay(1); //uncomment if delay function available
 			}
+			if(l11uxx_uart_rx_buffer_current_index<L11UXX_UART_RX_BUFFER_LEN) l11uxx_uart_rx_buffer_current_index++;
+			//else; //dang, we're full
 		}
-	*(saveTo2+l11uxx_uart_rx_buffer_current_index+1)=0; //cause I want the string to end here
+	*(&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+1)=0; //cause I want the string to end here
 	return;
-}*/
+}
