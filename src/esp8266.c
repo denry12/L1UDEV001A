@@ -36,13 +36,77 @@
 char esp_8266_cipmux_latest = 0; //only modify via special function
 
 
+
+int esp8266_debugOutput(char message[]){
+	//!!!printf version
+		//remove last char, ONLY if it's \n or \r
+		//this is done for "printf", cause it seems to consider them equal, adding unnecessary empty lines
+		/*char cutBuffer[strlen(text)];
+		strcpy(cutBuffer, text);
+		char *p = cutBuffer;
+		if(((p[strlen(p)-1]) == '\n') || ((p[strlen(p)-1]) == '\r')) p[strlen(p)-1] = 0;
+		printf(cutBuffer);*/
+
+	//UART version
+	//l11uxx_uart_Send(message);
+
+	//violent uart action
+	//bitbangUARTmessage(message);
+
+
+
+	//why is there lcd? this why!
+	//static int currentLine=0;
+	//if(currentLine<5) currentLine++;;
+	//lcd_5110_printString(0,currentLine, message);
+
+
+	lcd_5110_printAsConsole(message, 0);
+	lcd_5110_redraw();
+	return 1;
+}
+
 //HW specific code starts here
 int esp8266_sendCommandAndWaitOK(char command[]){
+	char *okResponse = 0;
+	char retriesMax = 30;
+	char retriesDone = 0;
+	extern char *l11uxx_uart_rx_buffer;
+	l11uxx_uart_clearRxBuffer(); //maybe unnecessary
+
+	//send out most of command
+	l11uxx_uart_Send(command);
+	//clear buffer again to remove echo
 	l11uxx_uart_clearRxBuffer();
 
-	l11uxx_uart_sendToBuffer();
-	return 0; //very broken
-	return 1; //is OK
+	//finalize command
+	l11uxx_uart_Send("\x0D\x0A");
+
+	esp8266_debugOutput("RxC.\n\r");
+	esp8266_debugOutput("Cmd:");
+	esp8266_debugOutput(command);
+	esp8266_debugOutput("\n\r");
+	while(!(okResponse)){
+			//okResponse = strstr(l11uxx_uart_rx_buffer, "OK\x0D\x0A");
+			okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
+			l11uxx_uart_sendToBuffer();
+			retriesDone++;
+			if(retriesDone>=retriesMax) break;
+			esp8266_debugOutput(".");
+			delay(100);
+	}
+	esp8266_debugOutput("\n\r");
+	//clear buffer again
+	l11uxx_uart_clearRxBuffer();
+	if(okResponse){
+		esp8266_debugOutput("OK GET\n\r");
+		return 1; //is OK
+	}
+	else {
+		esp8266_debugOutput("FAIL\n\r");
+		return 0; //very broken
+	}
+
 }
 
 int esp8266_sendCommandAndReadResponse(char command[]){

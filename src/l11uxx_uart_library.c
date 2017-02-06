@@ -147,10 +147,12 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 
 void l11uxx_uart_clearRxBuffer(){
 	l11uxx_uart_rx_buffer_current_index=0;
+	l11uxx_uart_rx_buffer[0]=0;
+	l11uxx_uart_rx_buffer[1]=0;
 	return;
 }
 
-void USART_IRQHandler(void){
+void UART_IRQHandler(void){
 //	debugMessage("UARTInterrupt fired!"); //this may cause me to lose data.
 	l11uxx_uart_sendToBuffer();
 }

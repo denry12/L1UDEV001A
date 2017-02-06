@@ -429,8 +429,8 @@ int debugOutput(char message[]){
 	//lcd_5110_printString(0,currentLine, message);
 
 
-	lcd_5110_printAsConsole(message, 1);
-	//lcd_5110_redraw();
+	lcd_5110_printAsConsole(message, 0);
+	lcd_5110_redraw();
 	return 1;
 }
 
@@ -440,6 +440,8 @@ int main(void) {
 
 	GPIOSetDir(0, 2, 0); //set input
 	GPIOSetDir(0, 7, 0); //set input
+	GPIOSetDir(0, 20, 1);
+	GPIOSetValue(0, 20, 0); //turn off adjpsu
 	GPIOSetDir(1, 13, 1);
 	GPIOSetDir(1, 14, 1);
 	GPIOSetDir(1, 27, 1);
@@ -460,17 +462,28 @@ int main(void) {
 	char temporaryString1[40], temporaryString2[40];
 	GPIOSetValue(1, 13, 0);
 
-	//l11uxx_uart_init(9600);
-	l11uxx_uart_init(115200);
+
 	//l11uxx_uart_pinSetup(47, 46); //set up to CH340
 	l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
 	l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
 
+	//l11uxx_uart_init(9600);
+		l11uxx_uart_init(115200);
+
+	//l11uxx_uart_Send("!!!!!!!!!!!!!!!!!!!!!!!!!!\n\r");
+		lcd_5110_init();
+			delay(100);
+			lcd_5110_clear_framebuffer();
+		debugOutput("ESP test\n\r");
+		esp8266_isAlive();
+		esp8266_SWreset();
+		esp8266_isAlive();
+
+	while(1); //I don't want to continue.
+
 	HW_test_lcd_5110_welcome();
 
-	lcd_5110_init();
-	delay(100);
-	lcd_5110_clear_framebuffer();
+
 
 	//debugOutput("\r\nAyy lmao!\n\r");
 	debugOutput("L1UDEV001A starting.\n\n\r");
