@@ -82,7 +82,7 @@ int esp8266_sendCommandAndWaitOK(char command[]){
 	//finalize command
 	l11uxx_uart_Send("\x0D\x0A");
 
-	esp8266_debugOutput("RxC.\n\r");
+	//esp8266_debugOutput("RxC\n\r");
 	esp8266_debugOutput("Cmd:");
 	esp8266_debugOutput(command);
 	esp8266_debugOutput("\n\r");
@@ -136,9 +136,18 @@ int esp8266_setMode(int mode){
 	//1 = sta <- this is client
 	//2 = AP <- this is "router", but without DHCP
 	//3 = both
-
+	switch(mode){
+		case 1:
+			if(esp8266_sendCommandAndWaitOK("AT+CWMODE=1")) return 1; //is OK
+			break;
+		case 2:
+			if(esp8266_sendCommandAndWaitOK("AT+CWMODE=2")) return 1; //is OK
+			break;
+		default:
+			if(esp8266_sendCommandAndWaitOK("AT+CWMODE=3")) return 1; //is OK
+			break;
+	}
 	return 0; //very broken
-	return 1; //is OK
 }
 
 //int esp8266_getNetworkList(){
@@ -150,10 +159,19 @@ int esp8266_setMode(int mode){
 int esp8266_setCipmux(int isMultichannel){
 	//if 1, then multiple connections
 	//if 0, is single connection
-	esp_8266_cipmux_latest = isMultichannel;
-
+	if(isMultiChannel){
+		if(esp8266_sendCommandAndWaitOK("AT+CIPMUX=1")){
+			esp_8266_cipmux_latest = isMultichannel; //updated only if all went well
+			return 1; //is OK
+		}
+	} else {
+		if(esp8266_sendCommandAndWaitOK("AT+CIPMUX=0")){
+			esp_8266_cipmux_latest = isMultichannel; //updated only if all went well
+			return 1; //is OK
+		}
+	}
 	return 0; //very broken
-	return 1; //is OK
+
 }
 
 int esp8266_joinAP(char ssid[], char passwd[]){
