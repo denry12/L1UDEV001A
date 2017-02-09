@@ -1,30 +1,28 @@
 /*
  * GENERATED FILE - DO NOT EDIT
- * (c) Code Red Technologies Ltd, 2008-13
+ * (c) Code Red Technologies Ltd, 2008-2013
  * (c) NXP Semiconductors 2013-2017
  * Generated linker script file for LPC11U35/401
- * Created from generic_c.ld (7.8.0 ())
- * By LPCXpresso v7.8.0 [Build 426] [2015-05-28]  on Mon Feb 06 21:26:45 EET 2017
+ * Created from linkscript.ldt by FMCreateLinkLibraries
+ * Using Freemarker v2.3.23
+ * LPCXpresso v8.1.2 [Build 603] [2016-03-07]  on 09-Feb-2017 17:32:21
  */
 
-
-INCLUDE "L1UDEV001A_Debug_lib.ld"
-INCLUDE "L1UDEV001A_Debug_mem.ld"
+INCLUDE "L1UDEV001A_Debug_library.ld"
+INCLUDE "L1UDEV001A_Debug_memory.ld"
 
 ENTRY(ResetISR)
 
 SECTIONS
 {
-
-    /* MAIN TEXT SECTION */    
+    /* MAIN TEXT SECTION */
     .text : ALIGN(4)
     {
         FILL(0xff)
         __vectors_start__ = ABSOLUTE(.) ;
         KEEP(*(.isr_vector))
-        
         /* Global Section Table */
-        . = ALIGN(4) ;
+        . = ALIGN(4) ; 
         __section_table_start = .;
         __data_section_table = .;
         LONG(LOADADDR(.data));
@@ -41,11 +39,10 @@ SECTIONS
         LONG(  SIZEOF(.bss_RAM2));
         __bss_section_table_end = .;
         __section_table_end = . ;
-        /* End of Global Section Table */
-        
+	    /* End of Global Section Table */
 
         *(.after_vectors*)
-        
+
         /* Code Read Protect data */
         . = 0x000002FC ;
         PROVIDE(__CRP_WORD_START__ = .) ;
@@ -53,82 +50,72 @@ SECTIONS
         PROVIDE(__CRP_WORD_END__ = .) ;
         ASSERT(!(__CRP_WORD_START__ == __CRP_WORD_END__), "Linker CRP Enabled, but no CRP_WORD provided within application");
         /* End of Code Read Protect */
-        
     } >MFlash64
-    
+
     .text : ALIGN(4)    
     {
-         *(.text*)
+        *(.text*)
         *(.rodata .rodata.* .constdata .constdata.*)
         . = ALIGN(4);
-        
     } > MFlash64
-
     /*
      * for exception handling/unwind - some Newlib functions (in common
      * with C++ and STDC++) use this. 
      */
-    .ARM.extab : ALIGN(4)
+    .ARM.extab : ALIGN(4) 
     {
-    	*(.ARM.extab* .gnu.linkonce.armextab.*)
+        *(.ARM.extab* .gnu.linkonce.armextab.*)
     } > MFlash64
     __exidx_start = .;
-    
+
     .ARM.exidx : ALIGN(4)
     {
-    	*(.ARM.exidx* .gnu.linkonce.armexidx.*)
+        *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > MFlash64
     __exidx_end = .;
-    
+
     _etext = .;
         
-    
     /* DATA section for RamUsb2 */
     .data_RAM2 : ALIGN(4)
     {
-       FILL(0xff)
-       PROVIDE(__start_data_RAM2 = .) ;
-       *(.ramfunc.$RAM2)
-       *(.ramfunc.$RamUsb2)
-    	*(.data.$RAM2*)
-    	*(.data.$RamUsb2*)
-       . = ALIGN(4) ;
-       PROVIDE(__end_data_RAM2 = .) ;
-    } > RamUsb2 AT>MFlash64
-    
-    /* MAIN DATA SECTION */
-    
+        FILL(0xff)
+        PROVIDE(__start_data_RAM2 = .) ;
+        *(.ramfunc.$RAM2)
+        *(.ramfunc.$RamUsb2)
+        *(.data.$RAM2*)
+        *(.data.$RamUsb2*)
+        . = ALIGN(4) ;
+        PROVIDE(__end_data_RAM2 = .) ;
+     } > RamUsb2 AT>MFlash64
 
+    /* MAIN DATA SECTION */
     .uninit_RESERVED : ALIGN(4)
     {
         KEEP(*(.bss.$RESERVED*))
         . = ALIGN(4) ;
         _end_uninit_RESERVED = .;
     } > RamLoc8
-
-	
-	/* Main DATA section (RamLoc8) */
-	.data : ALIGN(4)
-	{
-	   FILL(0xff)
-	   _data = . ;
-	   *(vtable)
-	   *(.ramfunc*)
-	   *(.data*)
-	   . = ALIGN(4) ;
-	   _edata = . ;
-	} > RamLoc8 AT>MFlash64
-
+    /* Main DATA section (RamLoc8) */
+    .data : ALIGN(4)
+    {
+       FILL(0xff)
+       _data = . ;
+       *(vtable)
+       *(.ramfunc*)
+       *(.data*)
+       . = ALIGN(4) ;
+       _edata = . ;
+    } > RamLoc8 AT>MFlash64
     /* BSS section for RamUsb2 */
     .bss_RAM2 : ALIGN(4)
     {
        PROVIDE(__start_bss_RAM2 = .) ;
-    	*(.bss.$RAM2*)
-    	*(.bss.$RamUsb2*)
-       . = ALIGN(4) ;
+       *(.bss.$RAM2*)
+       *(.bss.$RamUsb2*)
+       . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM2 = .) ;
-    } > RamUsb2
-
+    } > RamUsb2 
     /* MAIN BSS SECTION */
     .bss : ALIGN(4)
     {
@@ -139,15 +126,13 @@ SECTIONS
         _ebss = .;
         PROVIDE(end = .);
     } > RamLoc8
-        
     /* NOINIT section for RamUsb2 */
     .noinit_RAM2 (NOLOAD) : ALIGN(4)
     {
-    	*(.noinit.$RAM2*)
-    	*(.noinit.$RamUsb2*)
+       *(.noinit.$RAM2*)
+       *(.noinit.$RamUsb2*)
        . = ALIGN(4) ;
     } > RamUsb2 
-    
     /* DEFAULT NOINIT SECTION */
     .noinit (NOLOAD): ALIGN(4)
     {
@@ -156,7 +141,16 @@ SECTIONS
          . = ALIGN(4) ;
         _end_noinit = .;
     } > RamLoc8
-    
+
     PROVIDE(_pvHeapStart = DEFINED(__user_heap_base) ? __user_heap_base : .);
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc8 - 0);
+
+    /* ## Create checksum value (used in startup) ## */
+    PROVIDE(__valid_user_code_checksum = 0 - 
+                                         (_vStackTop 
+                                         + (ResetISR + 1) 
+                                         + (( DEFINED(NMI_Handler) ? NMI_Handler : M0_NMI_Handler ) + 1) 
+                                         + (( DEFINED(HardFault_Handler) ? HardFault_Handler : M0_HardFault_Handler ) + 1) 
+                                         )
+           );
 }

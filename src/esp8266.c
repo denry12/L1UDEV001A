@@ -27,8 +27,15 @@
 //ABCDEFFF
 //(data length 8, all letters sent)
 
-
-
+#ifndef uint8_t
+#define uint8_t unsigned char
+#endif
+#ifndef uint16_t
+#define uint16_t unsigned short
+#endif
+#ifndef uint32_t
+#define uint32_t unsigned int
+#endif
 
 #define ESP8266_RETRY_COUNT 10
 #define ESP8266_RETRY_DELAY 50
@@ -36,8 +43,8 @@
 char esp_8266_cipmux_latest = 0; //only modify via special function
 
 
-
-int esp8266_debugOutput(char message[]){
+//HW specific code starts here
+int esp8266_debugOutput(char *message){
 	//!!!printf version
 		//remove last char, ONLY if it's \n or \r
 		//this is done for "printf", cause it seems to consider them equal, adding unnecessary empty lines
@@ -66,8 +73,7 @@ int esp8266_debugOutput(char message[]){
 	return 1;
 }
 
-//HW specific code starts here
-int esp8266_sendCommandAndWaitOK(char command[]){
+int esp8266_sendCommandAndWaitOK(char *command){
 	char *okResponse = 0;
 	char retriesMax = 30;
 	char retriesDone = 0;
@@ -86,9 +92,14 @@ int esp8266_sendCommandAndWaitOK(char command[]){
 	esp8266_debugOutput("Cmd:");
 	esp8266_debugOutput(command);
 	esp8266_debugOutput("\n\r");
+
+	bitbangUARTmessage("CmdR:");
+		bitbangUARTmessage(command);
+		bitbangUARTmessage("\n\r");
+
 	while(!(okResponse)){
-			//okResponse = strstr(l11uxx_uart_rx_buffer, "OK\x0D\x0A");
-			okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
+			okResponse = strstr(&l11uxx_uart_rx_buffer, "OK\x0D\x0A");
+			//okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
 			l11uxx_uart_sendToBuffer();
 			retriesDone++;
 			if(retriesDone>=retriesMax) break;
@@ -109,11 +120,105 @@ int esp8266_sendCommandAndWaitOK(char command[]){
 
 }
 
-int esp8266_sendCommandAndReadResponse(char command[]){
+int esp8266_sendCommandAndReadResponse(char *command, char *response){
+	//char *response = 0;
+	*response = 0;
+	char retriesMax = 30;
+	char retriesDone = 0;
+	unsigned int debug= 0 ;
+	char temporaryBuffer[100];
+
+	extern char *l11uxx_uart_rx_buffer;
+	volatile extern int l11uxx_uart_rx_buffer_current_index;
+	l11uxx_uart_clearRxBuffer(); //maybe unnecessary
+	bitbangUARTmessage("     Testline: 50\n\r");
+	//send out most of command
+	l11uxx_uart_Send(command);
+	//clear buffer again to remove echo
+	l11uxx_uart_clearRxBuffer();
+	bitbangUARTmessage("     Testline: 70\n\r");
 
 
+
+	//finalize command
+	delay(10); //this was added during debugging. Not sure if necessary (hopefully no)
+	l11uxx_uart_Send("\x0D\x0A");
+	//bitbangUARTmessage("     Testline: 100\n\r");
+	//esp8266_debugOutput("RxC\n\r");
+	l11uxx_uart_sendToBuffer(); //keep receiving
+	esp8266_debugOutput("CmdR:");
+	esp8266_debugOutput(command);
+	esp8266_debugOutput("\n\r");
+
+	bitbangUARTmessage("CmdR:");
+		bitbangUARTmessage(command);
+		bitbangUARTmessage("\n\r");
+
+	l11uxx_uart_sendToBuffer(); //keep receiving
+	bitbangUARTmessage("     Testline: 150\n\r");
+	//while(!(response)){
+	//is last thing in UART buffer CR+LF?
+	while((l11uxx_uart_rx_buffer_current_index < 2)){ //deffo not enough data
+		l11uxx_uart_sendToBuffer(); //keep receiving
+		retriesDone++;
+		if(retriesDone>=retriesMax) break;
+		esp8266_debugOutput(".");
+		delay(100);
+	}
+	bitbangUARTmessage("     Testline: 180\n\r");
+	//l11uxx_uart_spewBuffer();
+	if(retriesDone>=retriesMax){
+		esp8266_debugOutput("FAIL(A)\n\r");
+		return 0; //very broken
+	}
+	debug = l11uxx_uart_rx_buffer_current_index-2;
+	debug = &l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2];
+	strcpy(temporaryBuffer, &l11uxx_uart_rx_buffer);
+
+
+	//l11uxx_uart_spewBuffer();
+	l11uxx_uart_sendToBuffer(); //POSSIBLY REMOVABLE?
+	l11uxx_uart_spewBuffer();
+	//				while(((strcmp("\x0D\x0A",((l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])))) != 0))
+	//while(((strcmp(((&l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])), "\x0D\x0A")) != 0))
+	//while(((strcmp("\x0D\x0A",((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)))) != 0))
+	while(((strcmp(((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)),"\x0A\x0D")) != 0)) { //when last two chars are not end of command by ESP
+		//^ change this while to check if AD is there (there will be at least one
+		//there must be another one somewhere after it
+		//between these two, there is result.
+
+		bitbangUARTmessage("     Testline: 190\n\r");
+		bitbangUARTmessage((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2));
+		bitbangUARTmessage("     Testline: 200\n\r");
+		l11uxx_uart_sendToBuffer(); //keep receiving
+		retriesDone++;
+		if(retriesDone>=retriesMax) break;
+		esp8266_debugOutput(".");
+		delay(100);
+	}
+
+	if(retriesDone>=retriesMax){
+		esp8266_debugOutput("FAIL(B)\n\r");
+		return 0; //very broken
+
+	}
+	esp8266_debugOutput("\n\r");
+	//cut out the response we got (remove CR+LF from beginning. Terminator added in uart rx function)
+	strcpy(response, l11uxx_uart_rx_buffer+2);
+
+	//}
+	esp8266_debugOutput("\n\r");
+	esp8266_debugOutput("R: ");
+	esp8266_debugOutput(response);
+
+	//clear buffer again
+	l11uxx_uart_clearRxBuffer();
 	return 0; //very broken
 	return 1; //is OK
+}
+
+int esp8266_checkForRxPacket(){
+
 }
 
 //HW specific code ends here
@@ -159,7 +264,7 @@ int esp8266_setMode(int mode){
 int esp8266_setCipmux(int isMultichannel){
 	//if 1, then multiple connections
 	//if 0, is single connection
-	if(isMultiChannel){
+	if(isMultichannel){
 		if(esp8266_sendCommandAndWaitOK("AT+CIPMUX=1")){
 			esp_8266_cipmux_latest = isMultichannel; //updated only if all went well
 			return 1; //is OK

@@ -12,8 +12,8 @@
 
 #define L11UXX_UART_RX_BUFFER_LEN 200
 
-char l11uxx_uart_rx_buffer[L11UXX_UART_RX_BUFFER_LEN];
-int l11uxx_uart_rx_buffer_current_index = 0;
+volatile char l11uxx_uart_rx_buffer[L11UXX_UART_RX_BUFFER_LEN];
+volatile int l11uxx_uart_rx_buffer_current_index = 0;
 
 void l11uxx_uart_pinSetup_unset(int pin){ //uses physical pin numbers
 	//if(UARTNumberNumber == 0){
@@ -131,21 +131,31 @@ int l11uxx_uart_Send(char text[]){
 }
 
 void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to SW buffer
+	//char temporaryChar[2];
+	//temporaryChar[1] = 0;
 	while ((LPC_USART->LSR & 0x01)){//while data available
 			*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+			//bitbangUARTmessage("NewUARTByte: ");
+			//temporaryChar[0] = l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index];
+			//if(temporaryChar[0] == '\n') temporaryChar[0] = 'n';
+			//if(temporaryChar[0] == '\r') temporaryChar[0] = 'r';
+			//bitbangUARTmessage(temporaryChar);
+			//bitbangUARTmessage("\n\r");
 			//if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
 			if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
 				//let's wait, maybe slave is slow
-				delay(1); //uncomment if delay function available
+				delay(10); //uncomment if delay function available
 			}
 			if(l11uxx_uart_rx_buffer_current_index<L11UXX_UART_RX_BUFFER_LEN) l11uxx_uart_rx_buffer_current_index++;
-			//else; //dang, we're full
+			//else bitbangUARTmessage("UARTBUFFERFULL!\n\r"); //dang, we're full
 		}
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+1)=0; //cause I want the string to end here
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+0)=0; //cause I want the string to end here
 	return;
 }
 
 void l11uxx_uart_clearRxBuffer(){
+	bitbangUARTmessage("BUFFERCLEAR!\n\r"); //dang, we're full
+	l11uxx_uart_sendToBuffer();
 	l11uxx_uart_rx_buffer_current_index=0;
 	l11uxx_uart_rx_buffer[0]=0;
 	l11uxx_uart_rx_buffer[1]=0;
@@ -154,5 +164,42 @@ void l11uxx_uart_clearRxBuffer(){
 
 void UART_IRQHandler(void){
 //	debugMessage("UARTInterrupt fired!"); //this may cause me to lose data.
+	//if this interrupt gets called, we have way many data in buffer. Gotta handle fast:
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+	l11uxx_uart_rx_buffer_current_index++;
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+	l11uxx_uart_rx_buffer_current_index++;
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+	l11uxx_uart_rx_buffer_current_index++;
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+	l11uxx_uart_rx_buffer_current_index++;
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+	l11uxx_uart_rx_buffer_current_index++;
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+	l11uxx_uart_rx_buffer_current_index++;
+	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
+	l11uxx_uart_rx_buffer_current_index++;
+
+	//ok, maybe worst is over now
 	l11uxx_uart_sendToBuffer();
+}
+
+void l11uxx_uart_spewBuffer(){
+	//lcd_5110_printAsConsole(l11uxx_uart_rx_buffer, 0);
+	char temporaryString1[40];
+	bitbangUARTmessage("RxBSt: 0x");
+	itoa(&l11uxx_uart_rx_buffer, temporaryString1, 16);
+	bitbangUARTmessage(temporaryString1);
+	bitbangUARTmessage("; RxIn: 0x");
+	itoa(l11uxx_uart_rx_buffer_current_index, temporaryString1, 16); //this also seems to be wrong. 0x00 is OK but 0x20 shows as 0x10?!
+	bitbangUARTmessage(temporaryString1);
+	bitbangUARTmessage("; RxBEn: 0x");
+	itoa((&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index), temporaryString1, 16); //this line seems to be faulty
+	bitbangUARTmessage(temporaryString1);
+	bitbangUARTmessage("\n\r");
+
+	bitbangUARTmessage("RxBCont: ");
+	bitbangUARTmessage(l11uxx_uart_rx_buffer);
+	bitbangUARTmessage("\n\r");
+	return;
 }

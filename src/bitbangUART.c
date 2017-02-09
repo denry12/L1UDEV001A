@@ -10,10 +10,15 @@
 void bitbangUARTbyte(int letter){ //blasts out data @ pin 25 (P2_10) at staggering baudrate of 9600 bdps.
 
 	static int firstTime=1;
-	const int uartdelayus=91;
-	const int bitbangUARTport=0;
-	const int bitbangUARTbit=17;
+	//const int uartdelayus=91;// (9600@12MHz?)
+	const int uartdelayus=100;// (9600@48MHz?)
+	//const int bitbangUARTport=0;
+	//const int bitbangUARTbit=17;
 
+	const int bitbangUARTport=1;
+	const int bitbangUARTbit=19; //SSEL
+
+	//12mhz theory prolly:
 	//88 gave 10000 ????
 	//92 gave 9433
 	//96 gave 9256
@@ -23,7 +28,7 @@ void bitbangUARTbyte(int letter){ //blasts out data @ pin 25 (P2_10) at staggeri
 	if(firstTime){
 		GPIOSetDir(bitbangUARTport, bitbangUARTbit, 1); //set output
 		GPIOSetValue(bitbangUARTport, bitbangUARTbit, 1); //set high, IDLE
-		delay(20); //allow freak firsttimepacket to timeout
+		delay(10); //allow freak firsttimepacket to timeout
 		firstTime=0;
 	}
 

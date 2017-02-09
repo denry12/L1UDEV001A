@@ -45,3 +45,10 @@ Temporary Items
 *.hex
 *.ld
 *.o
+*.mk
+*.axf
+*.ld
+*.mk
+*.d
+*.d
+*.o

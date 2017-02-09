@@ -405,7 +405,7 @@ int flash_service_routine(){
 	return 0;
 }
 
-int debugOutput(char message[]){
+int debugOutput(char *message){
 	//!!!printf version
 		//remove last char, ONLY if it's \n or \r
 		//this is done for "printf", cause it seems to consider them equal, adding unnecessary empty lines
@@ -441,7 +441,7 @@ int main(void) {
 	GPIOSetDir(0, 2, 0); //set input
 	GPIOSetDir(0, 7, 0); //set input
 	GPIOSetDir(0, 20, 1);
-	GPIOSetValue(0, 20, 0); //turn off adjpsu
+	GPIOSetValue(0, 20, 1); //turn off adjpsu
 	GPIOSetDir(1, 13, 1);
 	GPIOSetDir(1, 14, 1);
 	GPIOSetDir(1, 27, 1);
@@ -451,7 +451,7 @@ int main(void) {
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
-	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd & ext flash
+	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd & ext flash & nokiaLCD
 	//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
 	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?)
 	//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
@@ -470,6 +470,24 @@ int main(void) {
 	//l11uxx_uart_init(9600);
 		l11uxx_uart_init(115200);
 
+
+
+		//MAD DEBUGGERY FOR ESP8266
+
+		extern char *l11uxx_uart_rx_buffer;
+		volatile extern int l11uxx_uart_rx_buffer_current_index;
+		bitbangUARTmessage("\n\r------------------------------------------------\n\r");
+		bitbangUARTmessage("RxBSt: 0x");
+		itoa(&l11uxx_uart_rx_buffer, temporaryString1, 16);
+		bitbangUARTmessage(temporaryString1);
+		bitbangUARTmessage("; RxIn: 0x");
+		itoa(l11uxx_uart_rx_buffer_current_index, temporaryString1, 16);
+		bitbangUARTmessage(temporaryString1);
+		bitbangUARTmessage("; RxBEn: 0x");
+		itoa((&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index), temporaryString1, 16);
+		bitbangUARTmessage(temporaryString1);
+		bitbangUARTmessage("\n\r");
+
 	//l11uxx_uart_Send("!!!!!!!!!!!!!!!!!!!!!!!!!!\n\r");
 		lcd_5110_init();
 			delay(100);
@@ -478,6 +496,14 @@ int main(void) {
 		esp8266_isAlive();
 		esp8266_SWreset();
 		esp8266_isAlive();
+		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
+		delay(2000);
+		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
+		delay(2000);
+		esp8266_sendCommandAndReadResponse("AT+RST", temporaryString1);
+		delay(3000);
+		l11uxx_uart_sendToBuffer(); //POSSIBLY REMOVABLE?
+			l11uxx_uart_spewBuffer();
 
 	while(1); //I don't want to continue.
 
