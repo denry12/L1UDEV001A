@@ -446,6 +446,10 @@ int main(void) {
 	GPIOSetDir(1, 14, 1);
 	GPIOSetDir(1, 27, 1);
 
+	GPIOSetDir(0, 17, 1); //I use it for debug
+	GPIOSetValue(0, 17, 0);
+
+
 	setupClocks();
 	setup48MHzInternalClock(); //gotta go fast
 
@@ -463,12 +467,8 @@ int main(void) {
 	GPIOSetValue(1, 13, 0);
 
 
-	//l11uxx_uart_pinSetup(47, 46); //set up to CH340
-	l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
-	l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
 
-	//l11uxx_uart_init(9600);
-		l11uxx_uart_init(115200);
+
 
 
 
@@ -493,8 +493,33 @@ int main(void) {
 			delay(100);
 			lcd_5110_clear_framebuffer();
 		debugOutput("ESP test\n\r");
+		//l11uxx_uart_pinSetup(47, 46); //set up to CH340
+			l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
+			l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
+		//l11uxx_uart_init(9600);
+				l11uxx_uart_init(115200);
+
+				//check baud for esp8266
+				if(esp8266_isAlive() == 0) l11uxx_uart_init(9600);
+				if(esp8266_isAlive() == 0) l11uxx_uart_init(19200);
+				if(esp8266_isAlive() == 0) ; //idk, massive fail
+
+		//esp8266_sendCommandAndWaitOK("AT+UART?");
 		esp8266_isAlive();
 		esp8266_SWreset();
+		l11uxx_uart_init(115200); //because SWreset
+		esp8266_isAlive();
+		esp8266_setUARTMode(19200, 8, 3, 0, 0);
+		l11uxx_uart_init(19200);
+		//esp8266_setUARTMode(115200, 8, 3, 0, 0);
+		//l11uxx_uart_init(19200);
+		//esp8266_SWreset();
+		//delay(1000);
+		//delay(100);
+		esp8266_isAlive();
+		esp8266_isAlive();
+		esp8266_isAlive();
+		esp8266_isAlive();
 		esp8266_isAlive();
 		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
 		delay(2000);

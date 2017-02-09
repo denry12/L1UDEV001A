@@ -10,7 +10,7 @@
 
 //http://dominicm.com/esp8266-send-receive-data/
 //http://www.espressif.com/sites/default/files/4b-esp8266_at_command_examples_en_v1.3.pdf
-
+//https://espressif.com/sites/default/files/documentation/4a-esp8266_at_instruction_set_en.pdf
 //	115200, CH_PD pin must be connected to VCC. To reset, ground the RST pin.
 //	boot with CH_PD unconnected (or low?).
 //	AT+CIPSTART=0,"UDP","192.168.0.6",9999$0D$0A
@@ -134,8 +134,11 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	bitbangUARTmessage("     Testline: 50\n\r");
 	//send out most of command
 	l11uxx_uart_Send(command);
+
+
+
 	//clear buffer again to remove echo
-	l11uxx_uart_clearRxBuffer();
+	//l11uxx_uart_clearRxBuffer();
 	bitbangUARTmessage("     Testline: 70\n\r");
 
 
@@ -143,6 +146,8 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	//finalize command
 	delay(10); //this was added during debugging. Not sure if necessary (hopefully no)
 	l11uxx_uart_Send("\x0D\x0A");
+
+
 	//bitbangUARTmessage("     Testline: 100\n\r");
 	//esp8266_debugOutput("RxC\n\r");
 	l11uxx_uart_sendToBuffer(); //keep receiving
@@ -173,7 +178,7 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	}
 	debug = l11uxx_uart_rx_buffer_current_index-2;
 	debug = &l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2];
-	strcpy(temporaryBuffer, &l11uxx_uart_rx_buffer);
+	//strcpy(temporaryBuffer, &l11uxx_uart_rx_buffer);
 
 
 	//l11uxx_uart_spewBuffer();
@@ -187,15 +192,18 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 		//there must be another one somewhere after it
 		//between these two, there is result.
 
-		bitbangUARTmessage("     Testline: 190\n\r");
-		bitbangUARTmessage((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2));
-		bitbangUARTmessage("     Testline: 200\n\r");
+		//bitbangUARTmessage("     Testline: 190\n\r");
+		//bitbangUARTmessage((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2));
+		//bitbangUARTmessage("     Testline: 200\n\r");
 		l11uxx_uart_sendToBuffer(); //keep receiving
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
 		esp8266_debugOutput(".");
 		delay(100);
 	}
+
+	l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
+
 
 	if(retriesDone>=retriesMax){
 		esp8266_debugOutput("FAIL(B)\n\r");
@@ -233,6 +241,34 @@ int esp8266_SWreset(){
 	esp8266_sendCommandAndWaitOK("AT+RST");
 	return 0; //very broken
 	return 1; //is OK
+}
+
+int esp8266_setUARTMode(int baudrate, char bits, char parity, char flowControl){
+	char modeConfString[40];
+	strcpy(modeConfString,"AT+UART_CUR=");
+
+	//TODO: make this part universal
+	if(baudrate==9600)strcat(modeConfString,"9600");
+	else if(baudrate==19200)strcat(modeConfString,"19200");
+	else if(baudrate==115200)strcat(modeConfString,"115200");
+	strcat(modeConfString,",");
+	strcat(modeConfString,"8,2,0");
+
+	//ATTENTION:
+	//As of 9th of February, 2017
+	//setting "Flow Control" to "0" (disable)
+	//ESP8266 heats up a lot, eventually causing
+	//voltage drop to reset MCU
+	//
+	//Using "1" (RTS) confuses poor LPC
+	//Using "2" (CTS) works well
+	//Using "3" probably confuses, cause has RTS.
+	strcat(modeConfString,",1"); //keep it as 1, unless you know why and what you are doing
+
+
+	if(esp8266_sendCommandAndWaitOK(modeConfString)) return 1; //is OK;
+	return 0; //very broken
+
 }
 
 //int esp8266_HWreset()
