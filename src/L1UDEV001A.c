@@ -437,8 +437,7 @@ int debugOutput(char *message){
 int main(void) {
 
 	//printf("Hello, this is app.");
-
-	GPIOSetDir(0, 2, 0); //set input
+ 	GPIOSetDir(0, 2, 0); //set input
 	GPIOSetDir(0, 7, 0); //set input
 	GPIOSetDir(0, 20, 1);
 	GPIOSetValue(0, 20, 1); //turn off adjpsu
@@ -497,12 +496,24 @@ int main(void) {
 			l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
 			l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
 		//l11uxx_uart_init(9600);
-				l11uxx_uart_init(115200);
+
 
 				//check baud for esp8266
-				if(esp8266_isAlive() == 0) l11uxx_uart_init(9600);
-				if(esp8266_isAlive() == 0) l11uxx_uart_init(19200);
-				if(esp8266_isAlive() == 0) ; //idk, massive fail
+				l11uxx_uart_init(19200);
+				debugOutput("19200?\n\r");
+				if(esp8266_isAlive() == 0){
+					//no response, trying smth else
+					l11uxx_uart_init(115200);
+					debugOutput("115200?\n\r");
+					if(esp8266_isAlive() == 0){
+					//no response, trying smth else
+						l11uxx_uart_init(9600);
+						debugOutput("9600?\n\r");
+
+						if(esp8266_isAlive() == 0) debugOutput("ESP comm fail!\n\r");; //idk, massive fail
+					}
+				}
+
 
 		//esp8266_sendCommandAndWaitOK("AT+UART?");
 		esp8266_isAlive();
@@ -516,10 +527,6 @@ int main(void) {
 		//esp8266_SWreset();
 		//delay(1000);
 		//delay(100);
-		esp8266_isAlive();
-		esp8266_isAlive();
-		esp8266_isAlive();
-		esp8266_isAlive();
 		esp8266_isAlive();
 		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
 		delay(2000);

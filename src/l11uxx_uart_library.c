@@ -201,15 +201,16 @@ void l11uxx_uart_spewBuffer(){
 	itoa(&l11uxx_uart_rx_buffer, temporaryString1, 16);
 	bitbangUARTmessage(temporaryString1);
 	bitbangUARTmessage("; RxIn: 0x");
-	itoa(l11uxx_uart_rx_buffer_current_index, temporaryString1, 16); //this also seems to be wrong. 0x00 is OK but 0x20 shows as 0x10?!
+	itoa(l11uxx_uart_rx_buffer_current_index, temporaryString1, 16);
 	bitbangUARTmessage(temporaryString1);
 	bitbangUARTmessage("; RxBEn: 0x");
-	itoa((&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index), temporaryString1, 16); //this line seems to be faulty
+	i = &l11uxx_uart_rx_buffer;
+	itoa((i+l11uxx_uart_rx_buffer_current_index), temporaryString1, 16);
 	bitbangUARTmessage(temporaryString1);
 	bitbangUARTmessage("\r\n");
 
 	bitbangUARTmessage("RxBCont: ");
-
+	i=0;
 	while((l11uxx_uart_rx_buffer[i]) != 0){
 		temporaryString1[0]=(l11uxx_uart_rx_buffer[i]);
 		temporaryString1[1]=0;

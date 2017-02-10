@@ -120,12 +120,18 @@ int esp8266_sendCommandAndWaitOK(char *command){
 
 }
 
+
+
+//"response" contains everything after \r\n after command echo
+//and ends prior to "OK" (so ends with \r\n)
 int esp8266_sendCommandAndReadResponse(char *command, char *response){
+	char *okResponse = 0;
 	//char *response = 0;
 	*response = 0;
 	char retriesMax = 30;
 	char retriesDone = 0;
 	unsigned int debug= 0 ;
+	unsigned int lengthOfResponse = 0;
 	char temporaryBuffer[100];
 
 	extern char *l11uxx_uart_rx_buffer;
@@ -187,10 +193,12 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	//				while(((strcmp("\x0D\x0A",((l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])))) != 0))
 	//while(((strcmp(((&l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])), "\x0D\x0A")) != 0))
 	//while(((strcmp("\x0D\x0A",((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)))) != 0))
-	while(((strcmp(((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)),"\x0A\x0D")) != 0)) { //when last two chars are not end of command by ESP
+	/*while(((strcmp(((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)),"\x0A\x0D")) != 0)) { //when last two chars are not end of command by ESP
 		//^ change this while to check if AD is there (there will be at least one
 		//there must be another one somewhere after it
 		//between these two, there is result.
+
+		strcpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+(l11uxx_uart_rx_buffer_current_index-l11uxx_uart_rx_buffer_current_index)));
 
 		//bitbangUARTmessage("     Testline: 190\n\r");
 		//bitbangUARTmessage((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2));
@@ -200,8 +208,22 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 		if(retriesDone>=retriesMax) break;
 		esp8266_debugOutput(".");
 		delay(100);
-	}
+	}*/
 
+	retriesDone=0;
+	while(!(okResponse)){
+				//okResponse = strstr(&l11uxx_uart_rx_buffer, "OK\x0D\x0A");
+				okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
+				l11uxx_uart_sendToBuffer();
+				retriesDone++;
+				if(retriesDone>=retriesMax) break;
+				esp8266_debugOutput(".");
+				delay(100);
+	}
+	lengthOfResponse = okResponse; //DEBUG <- gives 100001f50, mujal 17b
+	lengthOfResponse = &l11uxx_uart_rx_buffer; // <- gives nicely same as RxBSt
+	lengthOfResponse = (okResponse) - (lengthOfResponse);
+	strncpy(&response, (&l11uxx_uart_rx_buffer), lengthOfResponse);
 	l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
 
 
