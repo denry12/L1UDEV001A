@@ -73,7 +73,7 @@ int esp8266_debugOutput(char *message){
 	return 1;
 }
 
-int esp8266_sendCommandAndWaitOK(char *command){
+int esp8266_sendCommandAndWaitOK_big(char *command){
 	char *okResponse = 0;
 	char retriesMax = 30;
 	char retriesDone = 0;
@@ -133,7 +133,8 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	unsigned int debug= 0 ;
 	unsigned int lengthOfResponse = 0;
 	char temporaryBuffer[100];
-
+	int rxBufferLocalWaypoint;
+	int i;
 	extern char *l11uxx_uart_rx_buffer;
 	volatile extern int l11uxx_uart_rx_buffer_current_index;
 	l11uxx_uart_clearRxBuffer(); //maybe unnecessary
@@ -143,14 +144,16 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 
 
 
-	//clear buffer again to remove echo
+	//clear buffer again to remove echo <- do not you dare, we use it for referencing now.
 	//l11uxx_uart_clearRxBuffer();
 	bitbangUARTmessage("     Testline: 70\n\r");
 
 
 
 	//finalize command
-	delay(10); //this was added during debugging. Not sure if necessary (hopefully no)
+	delay(100); //without it rxcBufferLocalWaypoint is wrong :' ( EVEN WITH THAT IS!?
+	//rxBufferLocalWaypoint=l11uxx_uart_rx_buffer_current_index; //keeps in mind where we actually start our response
+	//rxBufferLocalWaypoint+=2; //"+2" stands for next line
 	l11uxx_uart_Send("\x0D\x0A");
 
 
@@ -188,8 +191,11 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 
 
 	//l11uxx_uart_spewBuffer();
-	l11uxx_uart_sendToBuffer(); //POSSIBLY REMOVABLE?
-	l11uxx_uart_spewBuffer();
+	//l11uxx_uart_sendToBuffer(); //POSSIBLY REMOVABLE?
+	//l11uxx_uart_spewBuffer();
+
+
+	bitbangUARTmessage("     Testline: 190\n\r");
 	//				while(((strcmp("\x0D\x0A",((l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])))) != 0))
 	//while(((strcmp(((&l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])), "\x0D\x0A")) != 0))
 	//while(((strcmp("\x0D\x0A",((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)))) != 0))
@@ -211,6 +217,7 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	}*/
 
 	retriesDone=0;
+	bitbangUARTmessage("     Testline: 200\n\r");
 	while(!(okResponse)){
 				//okResponse = strstr(&l11uxx_uart_rx_buffer, "OK\x0D\x0A");
 				okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
@@ -220,12 +227,33 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 				esp8266_debugOutput(".");
 				delay(100);
 	}
-	lengthOfResponse = okResponse; //DEBUG <- gives 100001f50, mujal 17b
-	lengthOfResponse = &l11uxx_uart_rx_buffer; // <- gives nicely same as RxBSt
-	lengthOfResponse = (okResponse) - (lengthOfResponse);
-	strncpy(&response, (&l11uxx_uart_rx_buffer), lengthOfResponse);
-	l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
+	bitbangUARTmessage("     Testline: 240\n\r");
+	l11uxx_uart_spewBuffer();
+	if(retriesDone>=retriesMax){
+			esp8266_debugOutput("FAIL(A)\n\r");
+			return 0; //very broken
+	}
+	bitbangUARTmessage("     Testline: 245\n\r");
+	lengthOfResponse = okResponse; //DEBUG <- often 0x0000017b (including OK)
+	lengthOfResponse = (int)(&l11uxx_uart_rx_buffer); // <- gives nicely same as RxBSt
+	lengthOfResponse = (int)(okResponse) - (int)(&l11uxx_uart_rx_buffer);
+	lengthOfResponse -= 2; //remove "OK"
+	bitbangUARTmessage("     Testline: 250\n\r");
 
+
+	//get string to buffer. not sure why this is necessary, but didn't work when I changed "0" to anything else
+	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+0), lengthOfResponse);
+	bitbangUARTmessage("     Testline: 252\n\r");
+	//cut string
+	rxBufferLocalWaypoint=strlen(command);
+	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+0), lengthOfResponse); // REMOVE THIS, IT IS DOUBLED!?
+	bitbangUARTmessage("     Testline: 255\n\r");
+	while((temporaryBuffer[rxBufferLocalWaypoint] == '\r') || (temporaryBuffer[rxBufferLocalWaypoint] == '\n')) rxBufferLocalWaypoint++;
+	for (i=0; i<lengthOfResponse; i++) temporaryBuffer[i] = temporaryBuffer[i+rxBufferLocalWaypoint];
+	temporaryBuffer[lengthOfResponse-rxBufferLocalWaypoint] = 0; //add null terminator to be sure. Likely not necessary but I have trust issues.
+	strcpy(&response, temporaryBuffer);
+	l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
+	bitbangUARTmessage("     Testline: 260\n\r");
 
 	if(retriesDone>=retriesMax){
 		esp8266_debugOutput("FAIL(B)\n\r");
@@ -233,19 +261,32 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 
 	}
 	esp8266_debugOutput("\n\r");
-	//cut out the response we got (remove CR+LF from beginning. Terminator added in uart rx function)
-	strcpy(response, l11uxx_uart_rx_buffer+2);
-
+	bitbangUARTmessage("     Testline: 290\n\r");
+	bitbangUARTmessage("     Testline: 300\n\r");
 	//}
 	esp8266_debugOutput("\n\r");
 	esp8266_debugOutput("R: ");
-	esp8266_debugOutput(response);
+	esp8266_debugOutput(&response);
+	bitbangUARTmessage(&response);
+	bitbangUARTmessage("     Testline: 310\n\r");
+	bitbangUARTmessage("     Testline: 320\n\r");
 
 	//clear buffer again
 	l11uxx_uart_clearRxBuffer();
-	return 0; //very broken
+
+	//if you made it this far, all OK!
 	return 1; //is OK
+	return 0; //very broken
+
 }
+
+int esp8266_sendCommandAndWaitOK(char *command){
+	char response[10];
+	if(esp8266_sendCommandAndReadResponse(command, response)) return 1; //is OK
+	esp8266_debugOutput("\r\n"); //cause I don't get newline with this
+	return 0; //very broken
+}
+
 
 int esp8266_checkForRxPacket(){
 

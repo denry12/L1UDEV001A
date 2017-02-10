@@ -487,6 +487,13 @@ int main(void) {
 		bitbangUARTmessage(temporaryString1);
 		bitbangUARTmessage("\n\r");
 
+		bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -\n\r");
+		bitbangUARTmessage("  ");
+		bitbangUARTint(65530, 3, 8);
+		bitbangUARThex(65530, 3, 8);
+		bitbangUARTbin(65530, 3, 32);
+		bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -\n\r");
+
 	//l11uxx_uart_Send("!!!!!!!!!!!!!!!!!!!!!!!!!!\n\r");
 		lcd_5110_init();
 			delay(100);

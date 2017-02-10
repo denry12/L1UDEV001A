@@ -76,3 +76,50 @@ void bitbangUARTmessage(char *text){
 		//bitbangUARTbyte(13); //CR
 	return;
 }
+
+void bitbangUARTint(int intValue, int newline, int minSpaces){
+	char intString[12];
+	int paddingZeroes=0;
+	itoa(intValue, intString, 10);
+	paddingZeroes = minSpaces - strlen(intValue) + 1;
+	while(paddingZeroes>0){
+		bitbangUARTmessage("0");
+		paddingZeroes--;
+	}
+	bitbangUARTmessage(intString);
+	if(newline & 1) bitbangUARTmessage("\n");
+	if(newline & 2) bitbangUARTmessage("\r");
+	return;
+}
+
+void bitbangUARThex(int intValue, int newline, int minSpaces){
+	char intString[12];
+	int paddingZeroes=0;
+	itoa(intValue, intString, 16);
+	bitbangUARTmessage("0x");
+	paddingZeroes = minSpaces - strlen(intValue) + 2;
+	while(paddingZeroes>0){
+		bitbangUARTmessage("0");
+		paddingZeroes--;
+	}
+	bitbangUARTmessage(intString);
+	if(newline & 1) bitbangUARTmessage("\n");
+	if(newline & 2) bitbangUARTmessage("\r");
+	return;
+}
+
+void bitbangUARTbin(int intValue, int newline, int minSpaces){
+	char intString[12];
+	int paddingZeroes=0;
+	itoa(intValue, intString, 2);
+	bitbangUARTmessage("0b");
+	paddingZeroes = minSpaces - strlen(intValue);
+	while(paddingZeroes>0){
+		bitbangUARTmessage("0");
+		paddingZeroes--;
+	}
+	bitbangUARTmessage(intString);
+	if(newline & 1) bitbangUARTmessage("\n");
+	if(newline & 2) bitbangUARTmessage("\r");
+	return;
+}
