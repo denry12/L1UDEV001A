@@ -67,12 +67,17 @@ int esp8266_debugOutput(char *message){
 	//if(currentLine<5) currentLine++;;
 	//lcd_5110_printString(0,currentLine, message);
 
+	bitbangUARTmessage(message);
+
 
 	lcd_5110_printAsConsole(message, 0);
 	lcd_5110_redraw();
 	return 1;
 }
 
+
+
+//THIS IS NOT USED.
 int esp8266_sendCommandAndWaitOK_big(char *command){
 	char *okResponse = 0;
 	char retriesMax = 30;
@@ -124,7 +129,7 @@ int esp8266_sendCommandAndWaitOK_big(char *command){
 
 //"response" contains everything after \r\n after command echo
 //and ends prior to "OK" (so ends with \r\n)
-int esp8266_sendCommandAndReadResponse(char *command, char *response){
+int esp8266_sendCommandAndReadResponse(char *command, char *response){ //with error, errorcode may be contained in "response". Not guaranteed.
 	char *okResponse = 0;
 	//char *response = 0;
 	*response = 0;
@@ -219,13 +224,29 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	retriesDone=0;
 	bitbangUARTmessage("     Testline: 200\n\r");
 	while(!(okResponse)){
-				//okResponse = strstr(&l11uxx_uart_rx_buffer, "OK\x0D\x0A");
-				okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
-				l11uxx_uart_sendToBuffer();
-				retriesDone++;
-				if(retriesDone>=retriesMax) break;
-				esp8266_debugOutput(".");
-				delay(100);
+		//maybe error instead!? no point to wait then
+		if(strstr(&l11uxx_uart_rx_buffer, "ERROR")){
+			esp8266_debugOutput("FAIL(E)\n\r");
+			strcpy(response, "ERROR");
+			return 0; //very broken
+		}
+		if(strstr(&l11uxx_uart_rx_buffer, "FAIL")){
+			esp8266_debugOutput("FAIL(F)\n\r");
+			strcpy(response, "FAIL");
+			return 0; //very broken
+		}
+		if(strstr(&l11uxx_uart_rx_buffer, "busy")){
+			esp8266_debugOutput("FAIL(b)\n\r");
+			strcpy(response, "busy");
+			return 0; //very broken
+		}
+		//okResponse = strstr(&l11uxx_uart_rx_buffer, "OK\x0D\x0A");
+		okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
+		l11uxx_uart_sendToBuffer();
+		retriesDone++;
+		if(retriesDone>=retriesMax) break;
+		esp8266_debugOutput(".");
+		delay(100);
 	}
 	bitbangUARTmessage("     Testline: 240\n\r");
 	l11uxx_uart_spewBuffer();
@@ -251,15 +272,14 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 	while((temporaryBuffer[rxBufferLocalWaypoint] == '\r') || (temporaryBuffer[rxBufferLocalWaypoint] == '\n')) rxBufferLocalWaypoint++;
 	for (i=0; i<lengthOfResponse; i++) temporaryBuffer[i] = temporaryBuffer[i+rxBufferLocalWaypoint];
 	temporaryBuffer[lengthOfResponse-rxBufferLocalWaypoint] = 0; //add null terminator to be sure. Likely not necessary but I have trust issues.
-	strcpy(&response, temporaryBuffer);
+	strcpy(response, temporaryBuffer);
 	l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
 	bitbangUARTmessage("     Testline: 260\n\r");
 
-	if(retriesDone>=retriesMax){
-		esp8266_debugOutput("FAIL(B)\n\r");
-		return 0; //very broken
-
-	}
+	//if(retriesDone>=retriesMax){
+	//	esp8266_debugOutput("FAIL(B)\n\r");
+	//	return 0; //very broken
+	//}
 	esp8266_debugOutput("\n\r");
 	bitbangUARTmessage("     Testline: 290\n\r");
 	bitbangUARTmessage("     Testline: 300\n\r");
@@ -282,8 +302,12 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){
 
 int esp8266_sendCommandAndWaitOK(char *command){
 	char response[10];
-	if(esp8266_sendCommandAndReadResponse(command, response)) return 1; //is OK
-	esp8266_debugOutput("\r\n"); //cause I don't get newline with this
+	if(esp8266_sendCommandAndReadResponse(command, response)){
+		esp8266_debugOutput("\r\n"); //cause I don't get newline with this
+		return 1; //is OK
+	}
+	//this fail is actually outputted in sendandread function as well
+	esp8266_debugOutput("FAIL\r\n"); //cause I don't get newline with this
 	return 0; //very broken
 }
 
@@ -378,9 +402,50 @@ int esp8266_setCipmux(int isMultichannel){
 
 }
 
-int esp8266_joinAP(char ssid[], char passwd[]){
+int esp8266_joinAP(char *ssid, char *passwd){
+	volatile char modeConfString[80];
+	int retryCounter=0;
+	const int maxRetries=10;
+	bitbangUARTmessage("Attempting to join AP: ");
+	bitbangUARTmessage(ssid);
+	bitbangUARTmessage(" with pass: ");
+	bitbangUARTmessage(passwd);
+	bitbangUARTmessage("\n\r");
+
+	strcpy(modeConfString,"AT+CWJAP_CUR=");
+	strcat(modeConfString,"\x22"); //" character
+	strcat(modeConfString,ssid);
+	strcat(modeConfString,"\x22"); //" character
+	strcat(modeConfString,",");
+	strcat(modeConfString,"\x22"); //" character
+	strcat(modeConfString,passwd);
+	strcat(modeConfString,"\x22"); //" character
+
+	if(esp8266_sendCommandAndWaitOK(modeConfString)) return 1; //is OK;
+	//likely timed out
+	//check status
+	strcpy(modeConfString,"");
+	while(retryCounter<maxRetries){
+		if(esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", modeConfString)){
+			bitbangUARTmessage("\n\r!!");
+			bitbangUARTmessage(modeConfString);
+			bitbangUARTmessage("!!\n\r");
+			if(strstr(modeConfString, "STATUS:2")){
+				bitbangUARTmessage("Wifi connected succesfully!!\n\r");
+				return 1;
+			}
+		}
+		else if(strstr(modeConfString, "busy")){
+			//extra grace time cause busy
+			bitbangUARTmessage("Extra time cause reported busy!\n\r");
+			delay(5000);
+		}
+		delay(1000);
+	retryCounter++;
+	}
+
+
 	return 0; //very broken
-	return 1; //is OK
 }
 
 int esp8266_leaveAP(char ssid[], char passwd[]){
@@ -404,6 +469,13 @@ int esp8266_closeConnection(int id){
 }
 
 int esp8266_openConnection(int id, char type[4], char ip[16], int port){
+	char modeConfString[40]; // should be enough
+
+
+		strcpy(modeConfString,"AT+CIPSTART=");
+		if(esp_8266_cipmux_latest == 1)strcat(modeConfString,"0,");
+
+		strcat(modeConfString,"8,2,0");
 	return 0; //very broken
 	return 1; //is OK
 }

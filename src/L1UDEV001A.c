@@ -462,7 +462,7 @@ int main(void) {
 
 	int i=0, j=0;
 
-	char temporaryString1[40], temporaryString2[40];
+	volatile char temporaryString1[40], temporaryString2[40];
 	GPIOSetValue(1, 13, 0);
 
 
@@ -535,7 +535,15 @@ int main(void) {
 		//delay(1000);
 		//delay(100);
 		esp8266_isAlive();
-		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
+
+		esp8266_joinAP("4A50DD","2444666668888888");
+
+		bitbangUARThex(temporaryString1,3,8);
+		bitbangUARTmessage("Cipstatus response request\n\r");
+		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1); //this line gets response nicely to string
+		bitbangUARTmessage("Cipstatus response occurred\n\r");
+		bitbangUARThex(temporaryString1,3,8); //this line breaks the contents!?
+		bitbangUARTmessage(temporaryString1);
 		delay(2000);
 		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
 		delay(2000);
