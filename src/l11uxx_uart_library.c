@@ -111,7 +111,7 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 			rxBusy=0;
 			if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
 				//let's wait, maybe slave is slow
-				delay(10); //uncomment if delay function available
+				//delay(10); //uncomment if delay function available
 			}
 
 		}
@@ -122,7 +122,7 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 }
 
 void l11uxx_uart_clearRxBuffer(){
-	bitbangUARTmessage("BUFFERCLEAR!\n\r");
+	//bitbangUARTmessage("BUFFERCLEAR!\n\r");
 	l11uxx_uart_sendToBuffer();
 	LPC_USART->FCR |= (1<<1); //Rx FIFO reset!
 	l11uxx_uart_rx_buffer_current_index=0;
@@ -265,10 +265,11 @@ int l11uxx_uart_init(uint32_t baudrate){
 	//  TXFIFORES:Writing a logic 1 to U0FCR[2] will clear all bytes in UART TX FIFO, reset the pointer logic.
 
 	//RX interrupt setup
-	LPC_USART->IER = (1<<2); //RXLIE - RX Line Interrupt Enable
+	LPC_USART->IER |= (1<<2); //RXLIE - RX Line Interrupt Enable
+	LPC_USART->IER |= (1<<0); // RBRINTEN - Receive data available interrupt enable
 	//LPC_USART->FCR |= (0x3<<6); //trigger level 3, 14 characters in RX buffer
 
-	//LPC_USART->IER = (1<<0); //RXLIE - RX Line Interrupt Enable
+
 	LPC_USART->FCR |= (0x0<<6); //trigger level 0, 1 characters in RX buffer
 	l11uxx_uart_clearRxBuffer();
 

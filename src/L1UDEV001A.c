@@ -84,7 +84,6 @@ void delay(int ms){
 }
 
 void setup48MHzInternalClock(){
-	//DO NOT FORGET TO UNCOMMENT THIS IF YOU WANT FAST MCU
 		//MAKES LPC GO SOVERYFAST
 		LPC_SYSCON->PDAWAKECFG &= (~(1<<7)); //pll powered up after wake (this is a desperate attempt)
 
@@ -156,234 +155,7 @@ void setupClocks(){
 
 
 
-void rxRoutine(){
-	l11uxx_uart_Send("RxRoutine is go!\n\r");
-	int i=0;
-	int j = 0;
-	int visualAssistance = 0;
-	int statusReg=0;
-	char temporaryString1[40], temporaryString2[40];
-	int temporaryInt=0;
 
-	/*delay(100);
-			nrf24l01_pwrupEnable();
-			delay(100);
-			*/
-
-
-			nrf24l01_writeRegister_withFrame (0x00, 0x1F); //config, rx
-			delay(100);
-
-	nrf24l01_getConfigData();
-	while(1){
-
-			//i = nrf24l01_bytesOfPayload_p0();
-			GPIOSetValue(1, 14, 1);
-			statusReg=nrf24l01_readRegister_withFrame(0x07); //read status register
-			//while (!(statusReg & 0x40)){
-			while ((nrf24l01_isRxFIFOEmpty())){
-				nrf24l01_CEEnable(); //LED shines while listening
-				GPIOSetValue(1, 13, 0);
-				delay(1000);
-				GPIOSetValue(1, 13, 1);
-				nrf24l01_CEDisable();
-				delay(10);
-
-
-				statusReg=nrf24l01_readRegister_withFrame(0x07); //read status register
-				//if(statusReg & 0x40){ //new data received
-				//	nrf24l01_writeRegister_withFrame (0x07, (statusReg|0x40)); //clear data received interrupt
-				//	l11uxx_uart_Send("Data received interrupt!\n\r");
-				//}
-				if(nrf24l01_isRxFIFOEmpty()) l11uxx_uart_Send("Rx FIFO empty - 1 ");
-				//else l11uxx_uart_Send("Rx FIFO has data - 1 \a"); //with bell! 0x07
-				else l11uxx_uart_Send("Rx FIFO has data - 1");
-				if (visualAssistance) l11uxx_uart_Send("|");
-				else l11uxx_uart_Send("-");
-				l11uxx_uart_Send("\n\r");
-				if(visualAssistance != 0) visualAssistance = 0;
-				else visualAssistance = 1;
-
-
-				//i = nrf24l01_bytesOfPayload_p0();
-
-
-			}
-			/*if(nrf24l01_isRxFIFOEmpty()) l11uxx_uart_Send("Rx FIFO empty - 2 ");
-			else l11uxx_uart_Send("Rx FIFO has data - 2 ");
-			if (visualAssistance) l11uxx_uart_Send("|");
-			else l11uxx_uart_Send("-");
-			l11uxx_uart_Send("\n\r");
-			if(visualAssistance != 0) visualAssistance = 0;
-			else visualAssistance = 1;
-			GPIOSetValue(1, 14, 1);
-
-			 */
-			//
-			strcpy(temporaryString1, "                              ");
-			l11uxx_uart_Send("Data: ");
-
-			//temporaryInt=nrf24l01_isRxFIFOEmpty();
-
-
-			//while(!(temporaryInt)){
-			while(!(nrf24l01_isRxFIFOEmpty())){
-				nrf24l01_CSEnable();
-				nrf24l01_readRxPayload ();
-				//while(!(nrf24l01_isRxFIFOEmpty())){
-				temporaryString1[1] = 0;
-				for(i=0; i<5; i++){
-				temporaryString1[0] = nrf24l01_recvSPIByte();
-				sprintf(&temporaryString2[0], "[0x%02x] ", temporaryString1[0]);
-				l11uxx_uart_Send(&temporaryString1[0]);
-				l11uxx_uart_Send(&temporaryString2[0]);
-				}
-				/*temporaryString1[1] = nrf24l01_recvSPIByte();
-				temporaryString1[2] = nrf24l01_recvSPIByte();
-				temporaryString1[3] = nrf24l01_recvSPIByte();
-				temporaryString1[4] = nrf24l01_recvSPIByte();*/
-
-				//temporaryString2[0] = temporaryString1[i];
-				//temporaryString2[1] = 0;
-				/*sprintf(&temporaryString2[0], "0x%02x ", temporaryString1[0]);
-				l11uxx_uart_Send(&temporaryString2[0]);
-				sprintf(&temporaryString2[0], "0x%02x ", temporaryString1[1]);
-				l11uxx_uart_Send(&temporaryString2[0]);
-				sprintf(&temporaryString2[0], "0x%02x ", temporaryString1[2]);
-				l11uxx_uart_Send(&temporaryString2[0]);
-				sprintf(&temporaryString2[0], "0x%02x ", temporaryString1[3]);
-				l11uxx_uart_Send(&temporaryString2[0]);
-				sprintf(&temporaryString2[0], "0x%02x ", temporaryString1[4]);
-				l11uxx_uart_Send(&temporaryString2[0]);*/
-
-				//}
-				nrf24l01_CSDisable();
-				//i--;
-
-			}
-			l11uxx_uart_Send(".\n\r");
-
-			if(statusReg & 0x40){ //new data received
-								nrf24l01_writeRegister_withFrame (0x07, (statusReg|0x40)); //clear data received interrupt
-								l11uxx_uart_Send("Cleared data received interrupt\n\r");
-							}
-			//nrf24l01_flushRxBuffer ();
-
-			delay(100);
-			strcpy(temporaryString1, "                              ");
-		}
-
-	return;
-}
-
-void txRoutine(){
-	int statusReg=0;
-	int printfdebug = 0;
-	l11uxx_uart_Send("TxRoutine is go!\n\r");
-	if(printfdebug) printf("TxRoutine is go!\n\r");
-
-	/*delay(100);
-	//	nrf24l01_pwrupDisable();
-		delay(100);
-
-		delay(100);
-			nrf24l01_primRXDisable();
-			delay(100);
-
-
-
-	delay(100);
-	nrf24l01_setTxAddr(0x456789ABCD);
-	delay(100);
-	//nrf24l01_setRxAddr(0xACDC000000);
-	nrf24l01_setRxAddr(0x456789ABCD); //autoack thing???
-
-	delay(100);
-
-
-	delay(100);
-		nrf24l01_pwrupEnable();
-		delay(100);*/
-
-
-		nrf24l01_writeRegister_withFrame (0x00, 0x1E); //config, tx
-			delay(100);
-
-	GPIOSetValue(1, 13, 1);
-	GPIOSetValue(1, 14, 1);
-	nrf24l01_getConfigData();
-	while(1){
-		if(!(nrf24l01_isTxFIFOFull())){
-			if(GPIOGetValue(0,2)){
-			nrf24l01_CSEnable();
-			nrf24l01_writeTxPayload ();
-			nrf24l01_sendSPIByte(65);//nrf24l01_sendSPIByte("A");
-			nrf24l01_sendSPIByte(121);//nrf24l01_sendSPIByte("y");
-			nrf24l01_sendSPIByte(121);//nrf24l01_sendSPIByte("y");
-			nrf24l01_sendSPIByte(32);//nrf24l01_sendSPIByte("!");
-			nrf24l01_sendSPIByte(108);//nrf24l01_sendSPIByte("");
-			nrf24l01_CSDisable();
-
-			nrf24l01_CSEnable();
-			nrf24l01_writeTxPayload ();
-			nrf24l01_sendSPIByte(109);//nrf24l01_sendSPIByte("A");
-			nrf24l01_sendSPIByte(97);//nrf24l01_sendSPIByte("y");
-			nrf24l01_sendSPIByte(111);//nrf24l01_sendSPIByte("y");
-			nrf24l01_sendSPIByte(33);//nrf24l01_sendSPIByte("!");
-			nrf24l01_sendSPIByte(33);//nrf24l01_sendSPIByte("");
-			nrf24l01_CSDisable();
-
-			l11uxx_uart_Send("Crap to Tx FIFO!\n\r");
-			delay(100);
-			if(printfdebug) printf("Crap successfully in Tx FIFO!\n\r");
-			}
-			else if(printfdebug) printf("Skipped transmission\n\r");
-		} else{
-			if(printfdebug) printf("Failed to send!\n\r");
-			nrf24l01_flushTxBuffer ();
-
-
-			if(printfdebug) printf("Flushed buffer!\n\r");
-		}
-
-		nrf24l01_CEEnable();
-		GPIOSetValue(1, 13, 0); //LED shines while transmitting
-		delay(1); //"don't keep in Tx mode for more than 4ms at a time"???
-		nrf24l01_CEDisable();
-
-		delay(100); //cause my eye is slow.
-		GPIOSetValue(1, 13, 1);
-
-		statusReg=nrf24l01_readRegister_withFrame(0x07); //read status register
-		while(statusReg & 0x10){
-			if(printfdebug) printf("MAT_RT interrupt active\n\r"); //data send failed???
-			//nrf24l01_writeRegister_withFrame (0x07, (statusReg|0x10)); //clear interrupt
-			while(statusReg & 0x10){
-				nrf24l01_writeRegister_withFrame (0x07, (statusReg|0x10)); //clear interrupt
-				nrf24l01_CEEnable();
-						GPIOSetValue(1, 13, 0); //LED shines while transmitting
-						delay(1); //"don't keep in Tx mode for more than 4ms at a time"???
-						nrf24l01_CEDisable();
-
-						delay(100); //cause my eye is slow.
-						GPIOSetValue(1, 13, 1);
-						statusReg=nrf24l01_readRegister_withFrame(0x07); //read status register
-			}
-			if(printfdebug) printf("MAT_RT interrupt cleared\n\r");
-		}	if(statusReg & 0x20){ //new data received
-			if(printfdebug) printf("TX_DS interrupt active\n\r"); //All cool, data sent
-			nrf24l01_writeRegister_withFrame (0x07, (statusReg|0x20)); //clear interrupt
-			if(printfdebug) printf("TX_DS interrupt cleared\n\r");
-		}
-
-
-		delay(1000);
-
-
-
-
-	}
-}
 
 
 int flash_service_routine(){
@@ -428,7 +200,7 @@ int debugOutput(char *message){
 	//if(currentLine<5) currentLine++;;
 	//lcd_5110_printString(0,currentLine, message);
 
-
+	bitbangUARTmessage(message);
 	lcd_5110_printAsConsole(message, 0);
 	lcd_5110_redraw();
 	return 1;
@@ -461,12 +233,10 @@ int main(void) {
 	//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
 
 	int i=0, j=0;
+	int debug=0;
 
-	volatile char temporaryString1[40], temporaryString2[40];
+	volatile char temporaryString1[300], temporaryString2[40];
 	GPIOSetValue(1, 13, 0);
-
-
-
 
 
 
@@ -487,12 +257,12 @@ int main(void) {
 		bitbangUARTmessage(temporaryString1);
 		bitbangUARTmessage("\n\r");
 
-		bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -\n\r");
-		bitbangUARTmessage("  ");
-		bitbangUARTint(65530, 3, 8);
-		bitbangUARThex(65530, 3, 8);
-		bitbangUARTbin(65530, 3, 32);
-		bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -\n\r");
+		//bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -\n\r");
+		//bitbangUARTmessage("  ");
+		//bitbangUARTint(65530, 3, 8);
+		//bitbangUARThex(65530, 3, 8);
+		//bitbangUARTbin(65530, 3, 32);
+		//bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -\n\r");
 
 	//l11uxx_uart_Send("!!!!!!!!!!!!!!!!!!!!!!!!!!\n\r");
 		lcd_5110_init();
@@ -505,21 +275,22 @@ int main(void) {
 		//l11uxx_uart_init(9600);
 
 
-				//check baud for esp8266
-				l11uxx_uart_init(19200);
-				debugOutput("19200?\n\r");
+			//check baud for esp8266
+			l11uxx_uart_init(9600);
+			debugOutput("9600?\n\r");
+			if(esp8266_isAlive() == 0){
+				//no response, trying smth else
+				l11uxx_uart_init(115200);
+				debugOutput("115200?\n\r");
 				if(esp8266_isAlive() == 0){
 					//no response, trying smth else
-					l11uxx_uart_init(115200);
-					debugOutput("115200?\n\r");
-					if(esp8266_isAlive() == 0){
-					//no response, trying smth else
-						l11uxx_uart_init(9600);
-						debugOutput("9600?\n\r");
 
-						if(esp8266_isAlive() == 0) debugOutput("ESP comm fail!\n\r");; //idk, massive fail
-					}
+					l11uxx_uart_init(19200);
+					debugOutput("19200?\n\r");
+
+					if(esp8266_isAlive() == 0) debugOutput("ESP comm fail!\n\r");; //idk, massive fail
 				}
+			}
 
 
 		//esp8266_sendCommandAndWaitOK("AT+UART?");
@@ -527,10 +298,12 @@ int main(void) {
 		esp8266_SWreset();
 		l11uxx_uart_init(115200); //because SWreset
 		esp8266_isAlive();
-		esp8266_setUARTMode(19200, 8, 3, 0, 0);
-		l11uxx_uart_init(19200);
-		//esp8266_setUARTMode(115200, 8, 3, 0, 0);
-		//l11uxx_uart_init(19200);
+
+		//esp8266_setUARTMode(9600, 8, 3, 0, 0);
+		//l11uxx_uart_init(9600);
+		esp8266_setUARTMode(115200, 8, 3, 0, 0);
+		l11uxx_uart_init(115200);
+
 		//esp8266_SWreset();
 		//delay(1000);
 		//delay(100);
@@ -542,15 +315,21 @@ int main(void) {
 		bitbangUARTmessage("Cipstatus response request\n\r");
 		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1); //this line gets response nicely to string
 		bitbangUARTmessage("Cipstatus response occurred\n\r");
-		bitbangUARThex(temporaryString1,3,8); //this line breaks the contents!?
+		bitbangUARThex(temporaryString1,3,8);
 		bitbangUARTmessage(temporaryString1);
+		//debug = (int)(temporaryString1);
+		esp8266_getOwnIP(temporaryString1);
+		bitbangUARTmessage(temporaryString1);
+		debugOutput("\n\r");
+		esp8266_getOwnMAC(temporaryString1);
 		delay(2000);
+		esp8266_leaveAP();
 		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
 		delay(2000);
 		esp8266_sendCommandAndReadResponse("AT+RST", temporaryString1);
 		delay(3000);
-		l11uxx_uart_sendToBuffer(); //POSSIBLY REMOVABLE?
-			l11uxx_uart_spewBuffer();
+
+		l11uxx_uart_spewBuffer();
 
 	while(1); //I don't want to continue.
 
@@ -612,30 +391,7 @@ int main(void) {
 
 
 
-		debugOutput("NRF setup\n\r");
-	nrf24l01_pin_init();
-	delay(100);
-	nrf24l01_pwrupDisable(); //lol otherwise can't write registers?
-	delay(100);
-	//http://gizmosnack.blogspot.com.ee/2013/04/tutorial-nrf24l01-and-avr.html
-	delay(100);
-	nrf24l01_writeRegister_withFrame (0x01, 0x01); //en_aa
-	nrf24l01_writeRegister_withFrame (0x02, 0x01); //en_rxaddr
-	nrf24l01_writeRegister_withFrame (0x03, 0x03); //setup_aw
-	nrf24l01_writeRegister_withFrame (0x05, 1); //rf_ch
-	nrf24l01_writeRegister_withFrame (0x06, 0x07); //rf_setup
-	nrf24l01_setRxAddr(0x1212121212);
-	nrf24l01_setTxAddr(0x1212121212);
-	nrf24l01_writeRegister_withFrame (0x11, 5); //rx_pw_p0
 
-
-
-	debugOutput("NRF setup done\n\r");
-
-	if(!(GPIOGetValue(0, 2))) txRoutine();
-	if(!(GPIOGetValue(0, 7)))  rxRoutine();
-
-	debugOutput("You missed your chance for NRF activity. Good job...\n\r");
 
 
 

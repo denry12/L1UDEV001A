@@ -40,6 +40,8 @@
 #define ESP8266_RETRY_COUNT 10
 #define ESP8266_RETRY_DELAY 50
 
+const char debug_testline_messages_SCARR = 0;
+
 char esp_8266_cipmux_latest = 0; //only modify via special function
 
 
@@ -137,13 +139,13 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){ //with er
 	char retriesDone = 0;
 	unsigned int debug= 0 ;
 	unsigned int lengthOfResponse = 0;
-	char temporaryBuffer[100];
+	//char temporaryBuffer[100];
 	int rxBufferLocalWaypoint;
 	int i;
 	extern char *l11uxx_uart_rx_buffer;
 	volatile extern int l11uxx_uart_rx_buffer_current_index;
 	l11uxx_uart_clearRxBuffer(); //maybe unnecessary
-	bitbangUARTmessage("     Testline: 50\n\r");
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 50\n\r");
 	//send out most of command
 	l11uxx_uart_Send(command);
 
@@ -151,7 +153,7 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){ //with er
 
 	//clear buffer again to remove echo <- do not you dare, we use it for referencing now.
 	//l11uxx_uart_clearRxBuffer();
-	bitbangUARTmessage("     Testline: 70\n\r");
+	//bitbangUARTmessage("     Testline: 70\n\r");
 
 
 
@@ -169,29 +171,29 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){ //with er
 	esp8266_debugOutput(command);
 	esp8266_debugOutput("\n\r");
 
-	bitbangUARTmessage("CmdR:");
-		bitbangUARTmessage(command);
-		bitbangUARTmessage("\n\r");
 
 	l11uxx_uart_sendToBuffer(); //keep receiving
-	bitbangUARTmessage("     Testline: 150\n\r");
+	//bitbangUARTmessage("     Testline: 150\n\r");
 	//while(!(response)){
 	//is last thing in UART buffer CR+LF?
 	while((l11uxx_uart_rx_buffer_current_index < 2)){ //deffo not enough data
 		l11uxx_uart_sendToBuffer(); //keep receiving
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
-		esp8266_debugOutput(".");
+		bitbangUARTloadingbar(retriesDone, retriesMax-1);
 		delay(100);
 	}
-	bitbangUARTmessage("     Testline: 180\n\r");
+	bitbangUARTloadingbar(retriesMax-1, retriesMax-1);
+	esp8266_debugOutput("\n\r");
+
+	//bitbangUARTmessage("     Testline: 180\n\r");
 	//l11uxx_uart_spewBuffer();
 	if(retriesDone>=retriesMax){
 		esp8266_debugOutput("FAIL(A)\n\r");
 		return 0; //very broken
 	}
-	debug = l11uxx_uart_rx_buffer_current_index-2;
-	debug = &l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2];
+	//debug = l11uxx_uart_rx_buffer_current_index-2;
+	//debug = &l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2];
 	//strcpy(temporaryBuffer, &l11uxx_uart_rx_buffer);
 
 
@@ -200,7 +202,7 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){ //with er
 	//l11uxx_uart_spewBuffer();
 
 
-	bitbangUARTmessage("     Testline: 190\n\r");
+	//bitbangUARTmessage("     Testline: 190\n\r");
 	//				while(((strcmp("\x0D\x0A",((l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])))) != 0))
 	//while(((strcmp(((&l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])), "\x0D\x0A")) != 0))
 	//while(((strcmp("\x0D\x0A",((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)))) != 0))
@@ -222,7 +224,7 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){ //with er
 	}*/
 
 	retriesDone=0;
-	bitbangUARTmessage("     Testline: 200\n\r");
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 200\n\r");
 	while(!(okResponse)){
 		//maybe error instead!? no point to wait then
 		if(strstr(&l11uxx_uart_rx_buffer, "ERROR")){
@@ -245,69 +247,84 @@ int esp8266_sendCommandAndReadResponse(char *command, char *response){ //with er
 		l11uxx_uart_sendToBuffer();
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
-		esp8266_debugOutput(".");
+		bitbangUARTloadingbar(retriesDone, retriesMax-1);
 		delay(100);
 	}
-	bitbangUARTmessage("     Testline: 240\n\r");
-	l11uxx_uart_spewBuffer();
+	bitbangUARTloadingbar(retriesMax-1, retriesMax-1);
+	esp8266_debugOutput("\n\r");
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 240\n\r");
+	//l11uxx_uart_spewBuffer();
 	if(retriesDone>=retriesMax){
 			esp8266_debugOutput("FAIL(A)\n\r");
 			return 0; //very broken
 	}
-	bitbangUARTmessage("     Testline: 245\n\r");
-	lengthOfResponse = okResponse; //DEBUG <- often 0x0000017b (including OK)
-	lengthOfResponse = (int)(&l11uxx_uart_rx_buffer); // <- gives nicely same as RxBSt
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 245\n\r");
+	//lengthOfResponse = okResponse; //DEBUG <- often 0x0000017b (including OK)
+	//lengthOfResponse = (int)(&l11uxx_uart_rx_buffer); // <- gives nicely same as RxBSt
 	lengthOfResponse = (int)(okResponse) - (int)(&l11uxx_uart_rx_buffer);
 	lengthOfResponse -= 2; //remove "OK"
-	bitbangUARTmessage("     Testline: 250\n\r");
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 250\n\r");
 
 
 	//get string to buffer. not sure why this is necessary, but didn't work when I changed "0" to anything else
-	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+0), lengthOfResponse);
-	bitbangUARTmessage("     Testline: 252\n\r");
+	strncpy(response, (&l11uxx_uart_rx_buffer+0), lengthOfResponse);
+	//bitbangUARTmessage("     Testline: 252\n\r");
 	//cut string
 	rxBufferLocalWaypoint=strlen(command);
-	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+0), lengthOfResponse); // REMOVE THIS, IT IS DOUBLED!?
-	bitbangUARTmessage("     Testline: 255\n\r");
-	while((temporaryBuffer[rxBufferLocalWaypoint] == '\r') || (temporaryBuffer[rxBufferLocalWaypoint] == '\n')) rxBufferLocalWaypoint++;
-	for (i=0; i<lengthOfResponse; i++) temporaryBuffer[i] = temporaryBuffer[i+rxBufferLocalWaypoint];
-	temporaryBuffer[lengthOfResponse-rxBufferLocalWaypoint] = 0; //add null terminator to be sure. Likely not necessary but I have trust issues.
-	strcpy(response, temporaryBuffer);
-	l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
-	bitbangUARTmessage("     Testline: 260\n\r");
+	strncpy(response, (&l11uxx_uart_rx_buffer+0), lengthOfResponse); // REMOVE THIS, IT IS DOUBLED!?
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 255\n\r");
+	while((response[rxBufferLocalWaypoint] == '\r') || (response[rxBufferLocalWaypoint] == '\n')) rxBufferLocalWaypoint++;
+	for (i=0; i<lengthOfResponse; i++) response[i] = response[i+rxBufferLocalWaypoint];
+	response[lengthOfResponse-rxBufferLocalWaypoint] = 0; //add null terminator to be sure. Likely not necessary but I have trust issues.
+
+
+	//strcpy(response, temporaryBuffer);
+
+
+	//l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 260\n\r");
 
 	//if(retriesDone>=retriesMax){
 	//	esp8266_debugOutput("FAIL(B)\n\r");
 	//	return 0; //very broken
 	//}
-	esp8266_debugOutput("\n\r");
-	bitbangUARTmessage("     Testline: 290\n\r");
-	bitbangUARTmessage("     Testline: 300\n\r");
+	//esp8266_debugOutput("\n\r");
+	//bitbangUARTmessage("     Testline: 290\n\r");
+	//bitbangUARTmessage("     Testline: 300\n\r");
 	//}
-	esp8266_debugOutput("\n\r");
-	esp8266_debugOutput("R: ");
-	esp8266_debugOutput(&response);
-	bitbangUARTmessage(&response);
-	bitbangUARTmessage("     Testline: 310\n\r");
-	bitbangUARTmessage("     Testline: 320\n\r");
+	//esp8266_debugOutput("\n\r");
+
+
+
+	//this causes occasional "FF""US" crap that "clears" screen
+	//esp8266_debugOutput("R: ");
+	//esp8266_debugOutput(&response);
+	//bitbangUARTmessage(&response);
+
+
+	//bitbangUARTmessage("     Testline: 310\n\r");
+	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 320\n\r");
 
 	//clear buffer again
 	l11uxx_uart_clearRxBuffer();
 
 	//if you made it this far, all OK!
+	bitbangUARTmessage("CMD ok, returning\r\n");
 	return 1; //is OK
 	return 0; //very broken
 
 }
 
 int esp8266_sendCommandAndWaitOK(char *command){
-	char response[10];
-	if(esp8266_sendCommandAndReadResponse(command, response)){
-		esp8266_debugOutput("\r\n"); //cause I don't get newline with this
+	char response[80]; //this could be written anywhere, it is never read
+	//80 chars seems to be enough to fit any crap it may output
+
+	if(esp8266_sendCommandAndReadResponse(command, response)){ //this "response" is discarded, so it should be written to somewhere where nobody cares
+		//esp8266_debugOutput("\r\n"); //cause I don't get newline with this
 		return 1; //is OK
 	}
 	//this fail is actually outputted in sendandread function as well
-	esp8266_debugOutput("FAIL\r\n"); //cause I don't get newline with this
+	//esp8266_debugOutput("FAIL\r\n"); //cause I don't get newline with this
 	return 0; //very broken
 }
 
@@ -352,8 +369,12 @@ int esp8266_setUARTMode(int baudrate, char bits, char parity, char flowControl){
 	//Using "3" probably confuses, cause has RTS.
 	strcat(modeConfString,",1"); //keep it as 1, unless you know why and what you are doing
 
-
-	if(esp8266_sendCommandAndWaitOK(modeConfString)) return 1; //is OK;
+	bitbangUARTmessage("Doing CMD for UARTspeed\r\n");
+	if(esp8266_sendCommandAndWaitOK(modeConfString)){
+		bitbangUARTmessage("UARTSpeed CMD success\r\n");
+		return 1; //is OK;
+	}
+	bitbangUARTmessage("UARTSpeed CMD fail\r\n");
 	return 0; //very broken
 
 }
@@ -406,6 +427,7 @@ int esp8266_joinAP(char *ssid, char *passwd){
 	volatile char modeConfString[80];
 	int retryCounter=0;
 	const int maxRetries=10;
+	int i;
 	bitbangUARTmessage("Attempting to join AP: ");
 	bitbangUARTmessage(ssid);
 	bitbangUARTmessage(" with pass: ");
@@ -427,20 +449,27 @@ int esp8266_joinAP(char *ssid, char *passwd){
 	strcpy(modeConfString,"");
 	while(retryCounter<maxRetries){
 		if(esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", modeConfString)){
-			bitbangUARTmessage("\n\r!!");
+			//bitbangUARTmessage("\n\r!!");
 			bitbangUARTmessage(modeConfString);
-			bitbangUARTmessage("!!\n\r");
+			//bitbangUARTmessage("!!\n\r");
 			if(strstr(modeConfString, "STATUS:2")){
 				bitbangUARTmessage("Wifi connected succesfully!!\n\r");
 				return 1;
+			} else {
+				//gets OK response but does not contain STATUS:"
+				bitbangUARTmessage("Wifi connect failed.\n\r");
+				return 0; //very broken
 			}
 		}
 		else if(strstr(modeConfString, "busy")){
 			//extra grace time cause busy
 			bitbangUARTmessage("Extra time cause reported busy!\n\r");
-			delay(5000);
-		}
-		delay(1000);
+			for(i=0; i<=10; i++){
+				bitbangUARTloadingbar(i, 10);
+				delay(500);
+			}
+			bitbangUARTmessage("\r\n");
+		} else delay(1000);
 	retryCounter++;
 	}
 
@@ -448,18 +477,86 @@ int esp8266_joinAP(char *ssid, char *passwd){
 	return 0; //very broken
 }
 
-int esp8266_leaveAP(char ssid[], char passwd[]){
+int esp8266_leaveAP(){
+	//AT+CWQAP
+	bitbangUARTmessage("Ditching AP\n\r");
+	if(esp8266_sendCommandAndWaitOK("AT+CWQAP")){
+		bitbangUARTmessage("Ditched AP successfully\n\r");
+		return 1; //is OK
+	}
+	bitbangUARTmessage("AP ditch fail\n\r");
 	return 0; //very broken
-	return 1; //is OK
+
 }
 
 int esp8266_getOwnIP(char *IPoutput){
 	//AT+CIFSR
+	//volatile char modeConfString[80];
+	//int debug=0;
+	char *stringCutPointer;
+	bitbangUARTmessage("Getting IP\n\r");
+	if(esp8266_sendCommandAndReadResponse("AT+CIFSR", IPoutput)){
 
+		//currently has +CIRFSR:STAIP,"xxx.xxx.xxx.xxx"\r\n+CIFSR:STAMAC,"ab:cd:ab:cd:ab:cd"\r\n"
+		stringCutPointer = strstr(IPoutput, "+CIFSR:STAIP,\x22");
+		stringCutPointer = stringCutPointer + strlen("+CIFSR:STAIP,\x22");
+		memmove(IPoutput, stringCutPointer, strlen(IPoutput)+1);  //currently has xxx.xxx.xxx.xxx"\r\n+CIFSR:STAMAC,"ab:cd:ab:cd:ab:cd"\r\n"
+
+		stringCutPointer = strstr(IPoutput, "\x22"); 	//find next " symbol
+		if(!(stringCutPointer)){
+					bitbangUARTmessage("IP string not found\n\r");
+					bitbangUARTmessage("No IP 4 U\n\r");
+					return 0; //very broken
+				}
+		stringCutPointer[0] = 0; 						//and slam a null terminator there
+														//NB! No \r\n
+
+		bitbangUARTmessage("Looks like IP is: ");
+		//debug = (int)(&IPoutput);
+		bitbangUARTmessage((IPoutput));
+		bitbangUARTmessage("\n\r");
+		return 1; //is OK
+	}
+	bitbangUARTmessage("No IP 4 U\n\r");
 	return 0; //very broken
-	return 1; //is OK
 }
 
+
+int esp8266_getOwnMAC(char *IPoutput){
+	//AT+CIFSR
+	//volatile char modeConfString[80];
+	//int debug=0;
+	char *stringCutPointer;
+	bitbangUARTmessage("Getting MAC\n\r");
+	if(esp8266_sendCommandAndReadResponse("AT+CIFSR", IPoutput)){
+
+		//currently has +CIRFSR:STAIP,"xxx.xxx.xxx.xxx"\r\n+CIFSR:STAMAC,"ab:cd:ab:cd:ab:cd"\r\n"
+		//bitbangUARTmessage("Doing cutting\n\r");
+		stringCutPointer = strstr(IPoutput, "+CIFSR:STAMAC,\x22");
+		//bitbangUARTmessage("1");
+		stringCutPointer = stringCutPointer + strlen("+CIFSR:STAMAC,\x22");
+		//bitbangUARTmessage("2");
+		memmove(IPoutput, stringCutPointer, strlen(IPoutput)+1);  //currently has ab:cd:ab:cd:ab:cd"\r\n"
+		//bitbangUARTmessage("3");
+		stringCutPointer = strstr(IPoutput, "\x22"); 	//find next " symbol
+		if(!(stringCutPointer)){
+			bitbangUARTmessage("MAC string not found\n\r");
+			bitbangUARTmessage("No MAC 4 U\n\r");
+			return 0; //very broken
+		}
+		//bitbangUARTmessage("4");
+		stringCutPointer[0] = 0; 						//and slam a null terminator there
+														//NB! No \r\n
+		//bitbangUARTmessage("5\n\r");
+		bitbangUARTmessage("Looks like MAC is: ");
+		//debug = (int)(&IPoutput);
+		bitbangUARTmessage((IPoutput));
+		bitbangUARTmessage("\n\r");
+		return 1; //is OK
+	}
+	bitbangUARTmessage("No MAC 4 U\n\r");
+	return 0; //very broken
+}
 
 int esp8266_closeConnection(int id){
 	//if(esp_8266_cipmux_latest == 0) ;
@@ -468,7 +565,7 @@ int esp8266_closeConnection(int id){
 	return 1; //is OK
 }
 
-int esp8266_openConnection(int id, char type[4], char ip[16], int port){
+int esp8266_openConnection(int *id, char *type, char *ip, int *port){
 	char modeConfString[40]; // should be enough
 
 

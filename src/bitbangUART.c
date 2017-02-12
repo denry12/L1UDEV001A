@@ -5,7 +5,7 @@
  *      Author: Denry
  */
 
-
+#include <stdbool.h>
 
 void bitbangUARTbyte(int letter){ //blasts out data @ pin 25 (P2_10) at staggering baudrate of 9600 bdps.
 
@@ -72,6 +72,33 @@ void bitbangUARTmessage(char *text){
 			bitbangUARTbyte(text[charNumber]);
 			charNumber++;
 		}
+		//bitbangUARTbyte(11); //\n
+		//bitbangUARTbyte(13); //CR
+	return;
+}
+
+void bitbangUARTloadingbar(int current, int max){
+	const bool lockedSize=1;
+	char loadingBarLockedSize=20;
+
+	if(lockedSize){
+		current = current * loadingBarLockedSize;
+		current = current / max;
+		max = loadingBarLockedSize;
+	}
+
+	int i=0;
+	bitbangUARTbyte(13); //CR
+	bitbangUARTmessage("[");
+		while(i<current){
+			bitbangUARTmessage("=");
+			i++;
+		}
+		while(i<max){
+					bitbangUARTmessage(" ");
+					i++;
+		}
+		bitbangUARTmessage("]");
 		//bitbangUARTbyte(11); //\n
 		//bitbangUARTbyte(13); //CR
 	return;
