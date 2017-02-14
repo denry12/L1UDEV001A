@@ -131,11 +131,13 @@ void setupClocks(){
 	LPC_SYSCON->SYSOSCCTRL |= 0x01;
 
 	LPC_SYSCON->PDRUNCFG &= (~(1<<4)); //power up ADC
+	LPC_SYSCON->PDRUNCFG &= (~(1<<6)); //power up WDT osc
 	//page 30 of usermanual
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<7); //enable clock to CT16B0
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<8); //enable clock to CT16B1
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<9); //enable clock to CT32B0
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<10); //enable clock to CT32B1
+	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<15); //enable clock to WDT
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<12); //enable clock to USART
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<13); //enable clock to ADC

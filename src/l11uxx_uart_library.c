@@ -55,22 +55,6 @@ void l11uxx_uart_pinSetup(int txPin, int rxPin){ //uses physical pin numbers
 	return;
 }
 
-
-
-
-
-
-//int wifiSend(char *text){
-//UARTSend(text);
-
-//int broadcastData(char *data){
-//if(wifiSend(data))
-
-
-//MAIN
-//char broadcastMessage[80]="RAW-DATA-UNINITIALIZED.";
-//broadcastData(broadcastMessage);
-
 int l11uxx_uart_Send(char text[]){
 	int i=0;
 	//printf("SENDING!\n");
@@ -111,11 +95,11 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 			rxBusy=0;
 			if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
 				//let's wait, maybe slave is slow
-				//delay(10); //uncomment if delay function available
+				//delay(10); //uncomment if delay function available <- please note that 10ms is radical delay even for 9600baud
 			}
 
 		}
-	//*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+1)=LPC_USART->RBR; //fuckit, see what happens. - nothing much apparently
+
 	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+0)=0; //cause I want the string to end here
 
 	return;
@@ -132,56 +116,10 @@ void l11uxx_uart_clearRxBuffer(){
 }
 
 void UART_IRQHandler(void){
-//	debugMessage("UARTInterrupt fired!"); //this may cause me to lose data.
-
-
 	//LPC_GPIO->SET[0] = (0x20000); //0_17
-	//
-	//GPIOSetValue(0, 17, 0);
-
-	/*
-	//if this interrupt gets called, we have way many data in buffer. Gotta handle fast:
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-	l11uxx_uart_rx_buffer_current_index++;
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-	l11uxx_uart_rx_buffer_current_index++;
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-	l11uxx_uart_rx_buffer_current_index++;
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-	l11uxx_uart_rx_buffer_current_index++;
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-	l11uxx_uart_rx_buffer_current_index++;
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-	l11uxx_uart_rx_buffer_current_index++;
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-	l11uxx_uart_rx_buffer_current_index++;
-	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-		l11uxx_uart_rx_buffer_current_index++;*/
-
-	//ok, maybe worst is over now
-
 
 	if(rxBusy); //already work happening
 	else l11uxx_uart_sendToBuffer();
-	/*//vaese mehe inline:
-
-	while ((LPC_USART->LSR & 0x01)){//while data available
-
-			LPC_GPIO->SET[0] = (0x20000); //0_17
-
-			*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-			LPC_GPIO->CLR[0] = (0x20000); //0_17
-
-				if(l11uxx_uart_rx_buffer_current_index<L11UXX_UART_RX_BUFFER_LEN) l11uxx_uart_rx_buffer_current_index++;
-				else bitbangUARTmessage("UARTBUFFERFULL!\n\r"); //dang, we're full
-				if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
-					//let's wait, maybe slave is slow
-					delay(10); //uncomment if delay function available
-				}
-
-			}
-
-
 
 	//LPC_GPIO->CLR[0] = (0x20000); //0_17*/
 	//return;

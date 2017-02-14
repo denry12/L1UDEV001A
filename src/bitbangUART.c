@@ -79,7 +79,7 @@ void bitbangUARTmessage(char *text){
 
 void bitbangUARTloadingbar(int current, int max){
 	const bool lockedSize=1;
-	char loadingBarLockedSize=20;
+	const char loadingBarLockedSize=20;
 
 	if(lockedSize){
 		current = current * loadingBarLockedSize;
