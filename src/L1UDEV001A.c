@@ -238,8 +238,27 @@ int main(void) {
 	int debug=0;
 
 	volatile char temporaryString1[300], temporaryString2[40];
-	GPIOSetValue(1, 13, 0);
 
+
+	for(i=0; i<10; i++){
+		GPIOSetValue(1, 13, 1);
+		delay(50);
+		GPIOSetValue(1, 13, 0);
+		delay(50);
+
+
+	}
+	//delay(200);
+	l11uxx_power_enterPowerDown(500);
+	GPIOSetDir(1, 13, 1);
+	GPIOSetDir(1, 14, 1);
+
+	while(1){
+		GPIOSetValue(1, 14, 1);
+		delay(50);
+		GPIOSetValue(1, 14, 0);
+		delay(50);
+	}
 
 
 
