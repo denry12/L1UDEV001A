@@ -150,8 +150,8 @@ void setupClocks(){
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<12); //enable clock to USART
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<13); //enable clock to ADC
-	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
-//	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
+//	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
+	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
 	LPC_SYSCON->PRESETCTRL |= (1 << 2); //remove reset from SSP1
 
 
@@ -242,6 +242,11 @@ int main(void) {
 	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?)
 	//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
 	//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
+
+	l11uxx_uart_pinSetup(47, 46); //set up to CH340 //careful, esp is set afterwards
+	l11uxx_uart_init(9600); //upping speed later mby
+	//HW_test_getFlashID();
+	HW_test_uartToSPIconverter(1); //never returns
 
 	int i=0, j=0;
 	int debug=0;
