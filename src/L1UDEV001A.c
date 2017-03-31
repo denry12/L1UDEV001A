@@ -22,6 +22,15 @@
 
 //hwtests
 
+#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+#ifndef WIFI_SSID
+#define WIFI_SSID "4A50DD"
+#endif
+#ifndef WIFI_PASSWD
+#define WIFI_PASSWD "2444666668888888"
+#endif
+
+
 // TODO: insert other include files here
 
 // TODO: insert other definitions and declarations here
@@ -240,25 +249,7 @@ int main(void) {
 	volatile char temporaryString1[300], temporaryString2[40];
 
 
-	for(i=0; i<10; i++){
-		GPIOSetValue(1, 13, 1);
-		delay(50);
-		GPIOSetValue(1, 13, 0);
-		delay(50);
-
-
-	}
-	//delay(200);
-	l11uxx_power_enterPowerDown(500);
-	GPIOSetDir(1, 13, 1);
-	GPIOSetDir(1, 14, 1);
-
-	while(1){
-		GPIOSetValue(1, 14, 1);
-		delay(50);
-		GPIOSetValue(1, 14, 0);
-		delay(50);
-	}
+	//HW_test_lowerpower(500);
 
 
 

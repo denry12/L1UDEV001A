@@ -114,8 +114,8 @@ void bitbangUARTint(int intValue, int newline, int minSpaces){
 		paddingZeroes--;
 	}
 	bitbangUARTmessage(intString);
-	if(newline & 1) bitbangUARTmessage("\n");
-	if(newline & 2) bitbangUARTmessage("\r");
+	if(newline & 1) bitbangUARTmessage("\r");
+	if(newline & 2) bitbangUARTmessage("\n");
 	return;
 }
 
@@ -130,8 +130,8 @@ void bitbangUARThex(int intValue, int newline, int minSpaces){
 		paddingZeroes--;
 	}
 	bitbangUARTmessage(intString);
-	if(newline & 1) bitbangUARTmessage("\n");
-	if(newline & 2) bitbangUARTmessage("\r");
+	if(newline & 1) bitbangUARTmessage("\r");
+	if(newline & 2) bitbangUARTmessage("\n");
 	return;
 }
 
@@ -146,7 +146,7 @@ void bitbangUARTbin(int intValue, int newline, int minSpaces){
 		paddingZeroes--;
 	}
 	bitbangUARTmessage(intString);
-	if(newline & 1) bitbangUARTmessage("\n");
-	if(newline & 2) bitbangUARTmessage("\r");
+	if(newline & 1) bitbangUARTmessage("\r");
+	if(newline & 2) bitbangUARTmessage("\n");
 	return;
 }

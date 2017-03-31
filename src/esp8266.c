@@ -27,6 +27,9 @@
 //ABCDEFFF
 //(data length 8, all letters sent)
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifndef uint8_t
 #define uint8_t unsigned char
 #endif
@@ -558,26 +561,85 @@ int esp8266_getOwnMAC(char *IPoutput){
 	return 0; //very broken
 }
 
-int esp8266_closeConnection(int id){
-	//if(esp_8266_cipmux_latest == 0) ;
-	//else ;
+bool esp8266_closeConnection(uint8_t id){
+	char modeConfString[80];
+	char idString[2]; //should never go over 1 char+nullterminator
+	strcpy(modeConfString,"AT+CIPCLOSE");
+	if(esp_8266_cipmux_latest == 0){
+		bitbangUARTmessage("Closing only connection.\r\n");
+	} else {
+		strcat(modeConfString,"=");
+		itoa(id, idString, 10);
+		strcat(modeConfString, idString);
+		bitbangUARTmessage("Closing connection ");
+		bitbangUARTmessage(idString);
+		//bitbangUARTint(id, 0, 1);
+		bitbangUARTmessage(".\r\n");
+	}
+
+	if(esp8266_sendCommandAndWaitOK(modeConfString)){
+		bitbangUARTmessage("Closed.\r\n");
+		return 1; //is OK
+	}
+	bitbangUARTmessage("Not closed.\r\n");
 	return 0; //very broken
-	return 1; //is OK
 }
 
-int esp8266_openConnection(int *id, char *type, char *ip, int *port){
-	char modeConfString[40]; // should be enough
+bool esp8266_openConnection(uint8_t id, char *type, char *ip, uint16_t port){
+	char modeConfString[80];
+	char idString[2]; //should never go over 1 char+nullterminator
+	char portString[6]; //should never go over 5 char+nullterminator
+
+
+
+	itoa(id, idString, 10);
+	itoa(port, portString, 10);
+
+	if(strcmp(type, "TCP") == 0){
+
+	} else if(strcmp(type, "UDP") == 0){
 
 
 		strcpy(modeConfString,"AT+CIPSTART=");
-		if(esp_8266_cipmux_latest == 1)strcat(modeConfString,"0,");
 
-		strcat(modeConfString,"8,2,0");
+		if(esp_8266_cipmux_latest == 0){
+			bitbangUARTmessage("Opening only connection to ");
+			bitbangUARTmessage(ip);
+			bitbangUARTmessage(":");
+			bitbangUARTmessage(portString);
+			bitbangUARTmessage(".\r\n");
+		} else {
+			strcat(modeConfString, idString);
+			bitbangUARTmessage("Opening connection ");
+			bitbangUARTmessage(idString);
+			bitbangUARTmessage(" to ");
+			bitbangUARTmessage(ip);
+			bitbangUARTmessage(":");
+			bitbangUARTmessage(portString);
+			bitbangUARTmessage(".\r\n");
+			return 1; //is OK
+		}
+
+		strcat(modeConfString, ",\x22"); //add ,"
+		strcat(modeConfString, type);
+		strcat(modeConfString, "\x22,\x22"); //add ","
+		strcat(modeConfString, ip);
+		strcat(modeConfString, "\x22,"); //add ",
+		strcat(modeConfString, portString); //UDP remote port
+		strcat(modeConfString, ","); //add ,
+		strcat(modeConfString, portString); //UDP local port
+		strcat(modeConfString, ",0"); //add , and "destination peer entity of UDP will not change"
+	} else return 0; //very broken, I only support TCP and UDP
+
+	if(esp8266_sendCommandAndWaitOK(modeConfString)){
+		bitbangUARTmessage("Opened.\r\n");
+		return 1; //is OK
+	}
+	bitbangUARTmessage("Not opened.\r\n");
 	return 0; //very broken
-	return 1; //is OK
 }
 
-int esp8266_sendData(int id, int length, char data[]){
+int esp8266_sendData(uint8_t id, int length, char *data[]){
 
 	return 0; //very broken
 	return 1; //is OK
