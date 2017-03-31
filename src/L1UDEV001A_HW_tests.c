@@ -15,6 +15,8 @@
 #include "LPC11Uxx.h"
 #endif
 
+#include <stdlib.h>
+
 void HW_test_debugmessage(char text[]){
 	//comment this out if you do not want to
 	//use UART in HW tests where it is not critical
@@ -36,6 +38,21 @@ void HW_test_uart0_loopback(){
 
 	return; //it never returns...
 }
+
+
+//int HW_test_getFlashID(){ //incredibly unfinished
+//	//SPI pins, for example
+//	//l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd & ext flash & nokiaLCD
+//	const int flashIDbytes = 10;
+//	char flashID[flashIDbytes];
+//	//flash25P10_init();
+//	//flashID[0]=flash25P10_readStatusRegister();
+//
+//
+//
+//	//return &flashID;
+//	return 0;
+//}
 
 //void HW_test_adjpsu(){
 //	//sets
@@ -353,4 +370,114 @@ void HW_test_ILI9341(){
 		drawPokey(160, 120);
 	//ILI9341 testsection end
 		return;
+}
+
+void HW_test_uartToSPIconverter(int SPInumber){
+	//setup SPI & uart first, e.g.
+	//l11uxx_spi_pinSetup(1, 38, 26, 13);
+	//l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd & ext flash & nokiaLCD
+	//l11uxx_uart_pinSetup(47, 46); //set up to CH340
+	//l11uxx_uart_init(9600);
+
+
+	//send commands like "CS1H 0x00DA 0x00AF CS1L \r\n" over UART. All that is read back, is directly spewed out (also as hex)
+
+	l11uxx_uart_clearRxBuffer();
+	char *okResponse = 0;
+	int rxBufferLocalWaypoint = 0;
+	extern char l11uxx_uart_rx_buffer;
+	volatile extern int l11uxx_uart_rx_buffer_current_index;
+	int stringHandlingDone = 0;
+	int dataValue = 0;
+	int conversionBuffer[40];
+
+	const int indicate_transfer 	= 1; 	// Blinks some gpio while transferring
+
+	const int CS0_PORT 	= 1; 	// SPI1_SSEL
+	const int CS0_PIN 	= 19; 	// SPI1_SSEL
+	const int CS1_PORT 	= 1; 	// Flash CS
+	const int CS1_PIN 	= 25; 	// Flash CS
+
+	GPIOSetDir(CS0_PORT, CS0_PIN, 1);
+	GPIOSetDir(CS1_PORT, CS1_PIN, 1);
+	GPIOSetValue(CS0_PORT, CS0_PIN, 1);
+	GPIOSetValue(CS1_PORT, CS1_PIN, 1);
+	if(indicate_transfer) GPIOSetDir(1, 27, 1);
+	if(indicate_transfer) GPIOSetValue(1, 27, 1); //BL off
+
+	while(1){
+		okResponse = 0;
+		stringHandlingDone = 0;
+		rxBufferLocalWaypoint = 0;
+		l11uxx_uart_clearRxBuffer();
+		while(okResponse == 0){
+			while ((LPC_USART->LSR & 0x01)) l11uxx_uart_sendToBuffer(); //anything in HW buffer, slap it to SW buffer
+			okResponse = strstr(&l11uxx_uart_rx_buffer, "\n"); //finish with \r\n
+		}
+		if(indicate_transfer) GPIOSetValue(1, 27, 0); //BL on
+		while (stringHandlingDone == 0){
+			/*if((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)) == "CS0H") GPIOSetValue(CS0_PORT, CS0_PIN, 1);
+			else if((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)) == "CS0L") GPIOSetValue(CS0_PORT, CS0_PIN, 0);
+			else if((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)) == "CS1H") GPIOSetValue(CS1_PORT, CS1_PIN, 1);
+			else if((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)) == "CS1L") GPIOSetValue(CS1_PORT, CS1_PIN, 0);
+			else if((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)) == "0x"){
+				l11uxx_spi_sendByte(SPInumber, strtol((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)), NULL, 16));
+				//while ((LPC_SSP0->SR & (0x1 << 2))); //wait until data available
+				dataValue = LPC_SSP0->DR;
+
+				l11uxx_uart_Send("0x");
+				itoa(dataValue, conversionBuffer, 16);
+				l11uxx_uart_Send(conversionBuffer);
+			}
+			else if((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)) == '\n') stringHandlingDone = 1;
+			else if((*(&l11uxx_uart_rx_buffer_current_index+rxBufferLocalWaypoint)) == 0) stringHandlingDone = 1;*/
+
+			if(  strncmp(((&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)),"CS0H", 4) == 0  ) GPIOSetValue(CS0_PORT, CS0_PIN, 1);
+			else if(  strncmp(((&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)),"CS0L", 4) == 0  ) GPIOSetValue(CS0_PORT, CS0_PIN, 0);
+			else if(  strncmp(((&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)),"CS1H", 4) == 0  ){
+				GPIOSetValue(CS1_PORT, CS1_PIN, 1);
+				//l11uxx_uart_Send("FLH");
+			}
+			else if(  strncmp(((&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)),"CS1L", 4) == 0  ){
+				GPIOSetValue(CS1_PORT, CS1_PIN, 0);
+				//l11uxx_uart_Send("FLL");
+			}
+
+			else if(  strncmp(((&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)),"0x", 2) == 0  ) {
+				dataValue = strtol( ((&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)), NULL, 16);
+				l11uxx_spi_sendByte(SPInumber, dataValue);
+
+				if(SPInumber == 0){
+//					while ((LPC_SSP0->SR & (0x1 << 2))); //wait until data available
+					dataValue = LPC_SSP0->DR;
+				} else {
+//					while ((LPC_SSP1->SR & (0x1 << 2))); //wait until data available
+					dataValue = LPC_SSP1->DR;
+				}
+				l11uxx_uart_Send("0x");
+				itoa(dataValue, conversionBuffer, 16);
+				l11uxx_uart_Send(conversionBuffer);
+				l11uxx_uart_Send(" ");
+			}
+
+
+
+			else if(strncmp(((&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)),"\n", 1) == 0  ) stringHandlingDone = 1;
+			else if((*(&l11uxx_uart_rx_buffer+rxBufferLocalWaypoint)) == 0) stringHandlingDone = 1;
+			//else //unknown situation
+
+//			strcpy(conversionBuffer, (((&l11uxx_uart_rx_buffer))));
+//			l11uxx_uart_Send(conversionBuffer);
+
+			rxBufferLocalWaypoint++;
+
+		}
+		l11uxx_uart_Send("\r\n");
+		if(indicate_transfer) GPIOSetValue(1, 27, 1); //BL off
+
+	}
+
+
+
+	return; //never returns
 }
