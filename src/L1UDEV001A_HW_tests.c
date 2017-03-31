@@ -372,8 +372,6 @@ void HW_test_ILI9341(){
 		return;
 }
 
-<<<<<<< HEAD
-
 int HW_test_lowerpower(int powerdowntime){
 	int i;
 	for(i=0; i<10; i++){
@@ -396,7 +394,8 @@ int HW_test_lowerpower(int powerdowntime){
 		delay(50);
 	}
 	return 1;
-=======
+}
+
 void HW_test_uartToSPIconverter(int SPInumber){
 	//setup SPI & uart first, e.g.
 	//l11uxx_spi_pinSetup(1, 38, 26, 13);
@@ -505,5 +504,5 @@ void HW_test_uartToSPIconverter(int SPInumber){
 
 
 	return; //never returns
->>>>>>> a31336733f21da8c6e63f90282dd40051fe573ca
+
 }
