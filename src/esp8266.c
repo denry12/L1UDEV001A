@@ -29,6 +29,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "esp8266.h"
 
 #ifndef uint8_t
 #define uint8_t unsigned char
@@ -46,6 +47,48 @@
 const char debug_testline_messages_SCARR = 0;
 
 char esp_8266_cipmux_latest = 0; //only modify via special function
+
+bool esp8266_initalize(esp8266_instance *instance){
+
+	instance->rxBufferSize = RX_BUFFER_SIZE;
+	instance->txBufferSize = TX_BUFFER_SIZE;
+	instance->txCircBufferIndex = 0;
+	instance->rxCircBufferIndex = 0;
+	instance->charactersInTxBuffer = 0;
+	instance->charactersInRxBuffer = 0;
+	instance->receivedFromESPbuffer[0] = 0;
+	instance->sendToESPbuffer[0] = 0;
+	return 0; //all OK
+}
+
+bool esp8266_charFromUartToBuffer(esp8266_instance *instance, char character){
+	//is there room?
+	if((instance->charactersInRxBuffer) >= (instance->rxBufferSize))
+		return 1; //no room.
+
+	instance->receivedFromESPbuffer[instance->rxCircBufferIndex] = character;
+	instance->rxCircBufferIndex++;
+	if(instance->rxCircBufferIndex > instance->rxBufferSize) instance->rxCircBufferIndex = 0;
+	instance->charactersInRxBuffer++;
+
+	return 0; //all OK
+}
+
+int16_t esp8266_charFromBufferToUart(esp8266_instance *instance){
+
+	//is there anything in buffer?
+	if(instance->charactersInTxBuffer == 0)
+		return -1; //o no
+
+	char character;
+	int index = (instance->txCircBufferIndex) - (instance->charactersInTxBuffer);
+	if(index < 0)
+		index += instance->txBufferSize;
+	character = instance->sendToESPbuffer[index];
+	instance->charactersInRxBuffer--;
+
+	return character; //all OK
+}
 
 
 //HW specific code starts here

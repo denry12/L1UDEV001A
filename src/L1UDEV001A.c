@@ -19,6 +19,8 @@
 #include "gpio.h"
 #include "lcd_5110_lib.h"
 //#include "UART1114.h"
+#include "esp8266.h"
+
 
 //hwtests
 
@@ -217,6 +219,58 @@ int debugOutput(char *message){
 	return 1;
 }
 
+
+bool esp8266_LPCToESP(esp8266_instance instance){
+	int response;
+
+	//if there are chars waiting in buffer (not returning <0 (e.g. -1))
+	response = esp8266_charFromBufferToUart(instance);
+	if (response < 0) return 1;
+
+	//char placeholder = 'X';
+	//placeholder = response & 0xFF;
+
+	//send it to UART (if UART not busy?)
+	//todo: REPLACE IT WITH "IF UART FULL" if possible
+	if (!(LPC_USART->LSR & (1<<5))){  //THRE: Transmitter Holding Register Empty.
+				                                        // 0: THR contains valid data, 1: THR is empty
+			LPC_USART->THR = (response & 0xFF);
+	}
+	return 0;
+}
+
+bool esp8266_ESPToLPC(esp8266_instance instance){
+
+	volatile extern int l11uxx_uart_rx_buffer_current_index;
+	extern char *l11uxx_uart_rx_buffer;
+
+	//if data available in UART buffer
+	if ((l11uxx_uart_rx_buffer[0] == 0) && (l11uxx_uart_rx_buffer_current_index == 0))
+		return 1; //no data, return
+
+
+	int currentIndex, maxIndex = l11uxx_uart_rx_buffer_current_index;
+
+	//stop interrupts
+	NVIC_DisableIRQ(UART_IRQn);
+
+	//copy data out and prep for new data
+	char temporaryBuffer[l11uxx_uart_rx_buffer_current_index];
+	memcpy(temporaryBuffer, l11uxx_uart_rx_buffer, l11uxx_uart_rx_buffer_current_index);
+	l11uxx_uart_clearRxBuffer();
+
+	//re-enable interrupts
+	NVIC_EnableIRQ(UART_IRQn);
+
+	//handle data, send it to ESP buffer
+	while (currentIndex <= maxIndex){
+		if(esp8266_charFromUartToBuffer(instance, temporaryBuffer[currentIndex]) == 0)
+			currentIndex++;
+	}
+
+	return 0;
+}
+
 int main(void) {
 
 	//printf("Hello, this is app.");
@@ -245,6 +299,16 @@ int main(void) {
 
 	l11uxx_uart_pinSetup(47, 46); //set up to CH340 //careful, esp is set afterwards
 	l11uxx_uart_init(9600); //upping speed later mby
+
+	esp8266_instance esp01;
+	esp01.getCharFromESP = &esp8266_ESPToLPC;
+	esp01.sendCharToESP = &esp8266_LPCToESP;
+	esp8266_initalize(&esp01);
+
+
+	//esp01.getCharFromESP();
+	//esp01.sendCharToESP();
+
 	//HW_test_getFlashID();
 	HW_test_uartToSPIconverter(1); //never returns
 

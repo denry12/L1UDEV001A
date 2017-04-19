@@ -10,12 +10,9 @@
 #include "LPC11Uxx.h"
 #endif
 
-#define L11UXX_UART_RX_BUFFER_LEN 200
+#include "l11uxx_uart_library.h"
 
-volatile char l11uxx_uart_rx_buffer[L11UXX_UART_RX_BUFFER_LEN];
-volatile int l11uxx_uart_rx_buffer_current_index = 0;
 
-volatile char rxBusy = 0;
 
 void l11uxx_uart_pinSetup_unset(int pin){ //uses physical pin numbers
 	//if(UARTNumberNumber == 0){
