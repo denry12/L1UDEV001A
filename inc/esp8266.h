@@ -14,8 +14,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define RX_BUFFER_SIZE 100
-#define TX_BUFFER_SIZE 100
+#define RX_BUFFER_SIZE 500
+#define TX_BUFFER_SIZE 500
+
+typedef enum{
+	IDLE,
+	TXNEEDED,
+	WAITINGRESPONSE
+
+
+}esp8266_state;
 
 typedef struct {
 	int rxBufferSize;
@@ -28,6 +36,7 @@ typedef struct {
 	int charactersInTxBuffer;
 	bool (*getCharFromESP)();
 	bool (*sendCharToESP)();
+	esp8266_state currentstate;
 } esp8266_instance;
 
 #endif /* ESP8266_H_ */

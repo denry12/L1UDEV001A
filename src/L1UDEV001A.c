@@ -20,16 +20,19 @@
 #include "lcd_5110_lib.h"
 //#include "UART1114.h"
 #include "esp8266.h"
+#include "bitbangUART.h"
 
 
 //hwtests
 
-#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+//#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
-#define WIFI_SSID "4A50DD"
+//#define WIFI_SSID "4A50DD"
+#define WIFI_SSID "Test-asus"
 #endif
 #ifndef WIFI_PASSWD
-#define WIFI_PASSWD "2444666668888888"
+//#define WIFI_PASSWD "2444666668888888"
+#define WIFI_PASSWD "24681357"
 #endif
 
 
@@ -220,8 +223,13 @@ int debugOutput(char *message){
 }
 
 
-bool esp8266_LPCToESP(esp8266_instance instance){
+bool esp8266_LPCToESP(esp8266_instance *instance){
 	int response;
+
+
+	//bitbangUARTmessage("esp01addrL2E: ");
+	//bitbangUARThex(instance,0,0);
+	//bitbangUARTmessage("\r\n");
 
 	//if there are chars waiting in buffer (not returning <0 (e.g. -1))
 	response = esp8266_charFromBufferToUart(instance);
@@ -232,35 +240,57 @@ bool esp8266_LPCToESP(esp8266_instance instance){
 
 	//send it to UART (if UART not busy?)
 	//todo: REPLACE IT WITH "IF UART FULL" if possible
-	if (!(LPC_USART->LSR & (1<<5))){  //THRE: Transmitter Holding Register Empty.
+	while ((!LPC_USART->LSR & (1<<5))){  //THRE: Transmitter Holding Register Empty.
 				                                        // 0: THR contains valid data, 1: THR is empty
-			LPC_USART->THR = (response & 0xFF);
+			//just block it. It will send out data soon unless something very wrong
 	}
+	LPC_USART->THR = (response & 0xFF);
+	delay(1);
 	return 0;
 }
 
-bool esp8266_ESPToLPC(esp8266_instance instance){
+bool esp8266_ESPToLPC(esp8266_instance *instance){
 
+	delay(1);
 	volatile extern int l11uxx_uart_rx_buffer_current_index;
 	extern char *l11uxx_uart_rx_buffer;
 
+	//bitbangUARTmessage("esp01addrE2L: ");
+	//bitbangUARThex(instance,0,0);
+	//bitbangUARTmessage("\r\n");
+
+	l11uxx_uart_sendToBuffer(); //throw from HW buffer to SW buffer
+
+	//char debugtemp = *(&l11uxx_uart_rx_buffer+0);
+
 	//if data available in UART buffer
-	if ((l11uxx_uart_rx_buffer[0] == 0) && (l11uxx_uart_rx_buffer_current_index == 0))
-		return 1; //no data, return
+	//if ((*(l11uxx_uart_rx_buffer)) == 0)
+		if(l11uxx_uart_rx_buffer_current_index == 0)
+			return 1; //no data, return
 
 
-	int currentIndex, maxIndex = l11uxx_uart_rx_buffer_current_index;
+	int currentIndex = 0, maxIndex = l11uxx_uart_rx_buffer_current_index;
+
+
+	bitbangUARTmessage("UARTIndexPreClear: ");
+	bitbangUARTint(l11uxx_uart_rx_buffer_current_index,0,0);
+	bitbangUARTmessage("\r\n");
 
 	//stop interrupts
 	NVIC_DisableIRQ(UART_IRQn);
 
 	//copy data out and prep for new data
 	char temporaryBuffer[l11uxx_uart_rx_buffer_current_index];
-	memcpy(temporaryBuffer, l11uxx_uart_rx_buffer, l11uxx_uart_rx_buffer_current_index);
+	//memcpy(temporaryBuffer, l11uxx_uart_rx_buffer, l11uxx_uart_rx_buffer_current_index);
+	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+0), l11uxx_uart_rx_buffer_current_index);
 	l11uxx_uart_clearRxBuffer();
 
 	//re-enable interrupts
 	NVIC_EnableIRQ(UART_IRQn);
+
+	bitbangUARTmessage("UARTIndexPostClear: ");
+	bitbangUARTint(l11uxx_uart_rx_buffer_current_index,0,0);
+	bitbangUARTmessage("\r\n");
 
 	//handle data, send it to ESP buffer
 	while (currentIndex <= maxIndex){
@@ -293,7 +323,7 @@ int main(void) {
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
 	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd & ext flash & nokiaLCD
 	//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
-	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?)
+	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?), a specific 9113wifi
 	//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
 	//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
 
@@ -304,13 +334,15 @@ int main(void) {
 	esp01.getCharFromESP = &esp8266_ESPToLPC;
 	esp01.sendCharToESP = &esp8266_LPCToESP;
 	esp8266_initalize(&esp01);
-
+	bitbangUARTmessage("esp01addr: ");
+	bitbangUARThex(&esp01,0,0);
+	bitbangUARTmessage("\r\n");
 
 	//esp01.getCharFromESP();
 	//esp01.sendCharToESP();
 
 	//HW_test_getFlashID();
-	HW_test_uartToSPIconverter(1); //never returns
+	//HW_test_uartToSPIconverter(1); //never returns (careful, it didn't find the function for some reason when I commented it out. Might need to create header
 
 	int i=0, j=0;
 	int debug=0;
@@ -359,55 +391,57 @@ int main(void) {
 			//check baud for esp8266
 			l11uxx_uart_init(9600);
 			debugOutput("9600?\n\r");
-			if(esp8266_isAlive() == 0){
+			if(esp8266_isAlive(&esp01) == 0){
 				//no response, trying smth else
 				l11uxx_uart_init(115200);
 				debugOutput("115200?\n\r");
-				if(esp8266_isAlive() == 0){
+				if(esp8266_isAlive(&esp01) == 0){
 					//no response, trying smth else
 
 					l11uxx_uart_init(19200);
 					debugOutput("19200?\n\r");
 
-					if(esp8266_isAlive() == 0) debugOutput("ESP comm fail!\n\r");; //idk, massive fail
+					if(esp8266_isAlive(&esp01) == 0) debugOutput("ESP comm fail!\n\r");; //idk, massive fail
 				}
 			}
 
 
 		//esp8266_sendCommandAndWaitOK("AT+UART?");
-		esp8266_isAlive();
-		esp8266_SWreset();
-		l11uxx_uart_init(115200); //because SWreset
-		esp8266_isAlive();
+		esp8266_isAlive(&esp01);
 
-		//esp8266_setUARTMode(9600, 8, 3, 0, 0);
-		//l11uxx_uart_init(9600);
-		esp8266_setUARTMode(115200, 8, 3, 0, 0);
-		l11uxx_uart_init(115200);
+		//esp8266_SWreset(&esp01);
+		//l11uxx_uart_init(115200); //because SWreset
+		//esp8266_isAlive(&esp01);
+
+		esp8266_setUARTMode(&esp01, 9600, 8, 3, 0, 0);
+		l11uxx_uart_init(9600);
+		//esp8266_setUARTMode(&esp01, 115200, 8, 3, 0, 0);
+		//l11uxx_uart_init(115200);
 
 		//esp8266_SWreset();
 		//delay(1000);
 		//delay(100);
-		esp8266_isAlive();
+		esp8266_isAlive(&esp01);
 
-		esp8266_joinAP("4A50DD","2444666668888888");
+		//esp8266_joinAP(&esp01, "4A50DD","2444666668888888");WIFI_SSID
+		esp8266_joinAP(&esp01, WIFI_SSID, WIFI_PASSWD);
 
 		bitbangUARThex(temporaryString1,3,8);
 		bitbangUARTmessage("Cipstatus response request\n\r");
-		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1); //this line gets response nicely to string
+		esp8266_sendCommandAndReadResponse(&esp01, "AT+CIPSTATUS", temporaryString1); //this line gets response nicely to string
 		bitbangUARTmessage("Cipstatus response occurred\n\r");
 		bitbangUARThex(temporaryString1,3,8);
 		bitbangUARTmessage(temporaryString1);
 		//debug = (int)(temporaryString1);
-		esp8266_getOwnIP(temporaryString1);
+		esp8266_getOwnIP(&esp01, temporaryString1);
 		bitbangUARTmessage(temporaryString1);
 		debugOutput("\n\r");
-		esp8266_getOwnMAC(temporaryString1);
+		esp8266_getOwnMAC(&esp01, temporaryString1);
 		delay(2000);
-		esp8266_leaveAP();
-		esp8266_sendCommandAndReadResponse("AT+CIPSTATUS", temporaryString1);
+		esp8266_leaveAP(&esp01);
+		esp8266_sendCommandAndReadResponse(&esp01, "AT+CIPSTATUS", temporaryString1);
 		delay(2000);
-		esp8266_sendCommandAndReadResponse("AT+RST", temporaryString1);
+		esp8266_sendCommandAndReadResponse(&esp01, "AT+RST", temporaryString1);
 		delay(3000);
 
 		l11uxx_uart_spewBuffer();

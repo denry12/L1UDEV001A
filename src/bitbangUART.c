@@ -6,6 +6,7 @@
  */
 
 #include <stdbool.h>
+#include "bitbangUART.h"
 
 void bitbangUARTbyte(int letter){ //blasts out data @ pin 25 (P2_10) at staggering baudrate of 9600 bdps.
 
