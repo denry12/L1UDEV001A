@@ -109,7 +109,7 @@ void bitbangUARTint(int intValue, int newline, int minSpaces){
 	char intString[12];
 	int paddingZeroes=0;
 	itoa(intValue, intString, 10);
-	paddingZeroes = minSpaces - strlen(intValue) + 1;
+	paddingZeroes = minSpaces - strlen(intValue) + 0;
 	while(paddingZeroes>0){
 		bitbangUARTmessage("0");
 		paddingZeroes--;

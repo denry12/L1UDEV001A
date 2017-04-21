@@ -37,6 +37,7 @@ typedef struct {
 	bool (*getCharFromESP)();
 	bool (*sendCharToESP)();
 	esp8266_state currentstate;
+	char cipmux_latest
 } esp8266_instance;
 
 #endif /* ESP8266_H_ */

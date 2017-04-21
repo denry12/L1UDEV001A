@@ -226,7 +226,7 @@ int debugOutput(char *message){
 bool esp8266_LPCToESP(esp8266_instance *instance){
 	int response;
 
-
+	//delay(1);
 	//bitbangUARTmessage("esp01addrL2E: ");
 	//bitbangUARThex(instance,0,0);
 	//bitbangUARTmessage("\r\n");
@@ -251,7 +251,7 @@ bool esp8266_LPCToESP(esp8266_instance *instance){
 
 bool esp8266_ESPToLPC(esp8266_instance *instance){
 
-	delay(1);
+	//delay(1);
 	volatile extern int l11uxx_uart_rx_buffer_current_index;
 	extern char *l11uxx_uart_rx_buffer;
 
@@ -259,7 +259,8 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	//bitbangUARThex(instance,0,0);
 	//bitbangUARTmessage("\r\n");
 
-	l11uxx_uart_sendToBuffer(); //throw from HW buffer to SW buffer
+	//this should occur anyway cause 1-byte trigger for interrupt
+	//l11uxx_uart_sendToBuffer(); //throw from HW buffer to SW buffer
 
 	//char debugtemp = *(&l11uxx_uart_rx_buffer+0);
 
@@ -272,9 +273,9 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	int currentIndex = 0, maxIndex = l11uxx_uart_rx_buffer_current_index;
 
 
-	bitbangUARTmessage("UARTIndexPreClear: ");
-	bitbangUARTint(l11uxx_uart_rx_buffer_current_index,0,0);
-	bitbangUARTmessage("\r\n");
+	//bitbangUARTmessage("UARTIndexPreClear: ");
+	//bitbangUARTint(l11uxx_uart_rx_buffer_current_index,0,0);
+	//bitbangUARTmessage("\r\n");
 
 	//stop interrupts
 	NVIC_DisableIRQ(UART_IRQn);
@@ -288,12 +289,15 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	//re-enable interrupts
 	NVIC_EnableIRQ(UART_IRQn);
 
-	bitbangUARTmessage("UARTIndexPostClear: ");
-	bitbangUARTint(l11uxx_uart_rx_buffer_current_index,0,0);
-	bitbangUARTmessage("\r\n");
+	//add the null terminator where it should be.
+	//temporaryBuffer[currentIndex] = 0;
+
+	//bitbangUARTmessage("UARTIndexPostClear: ");
+	//bitbangUARTint(l11uxx_uart_rx_buffer_current_index,0,0);
+	//bitbangUARTmessage("\r\n");
 
 	//handle data, send it to ESP buffer
-	while (currentIndex <= maxIndex){
+	while (currentIndex <= (maxIndex + 1)){ //+1 to make sure nullterminator also comes over
 		if(esp8266_charFromUartToBuffer(instance, temporaryBuffer[currentIndex]) == 0)
 			currentIndex++;
 	}
@@ -355,8 +359,8 @@ int main(void) {
 
 
 		//MAD DEBUGGERY FOR ESP8266
-
-		extern char *l11uxx_uart_rx_buffer;
+		//OUTDATED
+		/*extern char *l11uxx_uart_rx_buffer;
 		volatile extern int l11uxx_uart_rx_buffer_current_index;
 		bitbangUARTmessage("\n\r------------------------------------------------\n\r");
 		bitbangUARTmessage("RxBSt: 0x");
@@ -368,7 +372,7 @@ int main(void) {
 		bitbangUARTmessage("; RxBEn: 0x");
 		itoa((&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index), temporaryString1, 16);
 		bitbangUARTmessage(temporaryString1);
-		bitbangUARTmessage("\n\r");
+		bitbangUARTmessage("\n\r");*/
 
 		//bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -\n\r");
 		//bitbangUARTmessage("  ");
@@ -423,7 +427,8 @@ int main(void) {
 		//delay(100);
 		esp8266_isAlive(&esp01);
 
-		//esp8266_joinAP(&esp01, "4A50DD","2444666668888888");WIFI_SSID
+		esp8266_setCipmux(&esp01, 1); //multiple connections, yay
+
 		esp8266_joinAP(&esp01, WIFI_SSID, WIFI_PASSWD);
 
 		bitbangUARThex(temporaryString1,3,8);
@@ -438,14 +443,23 @@ int main(void) {
 		debugOutput("\n\r");
 		esp8266_getOwnMAC(&esp01, temporaryString1);
 		delay(2000);
+
+		//attempt to get TCP connection somewhere
+		esp8266_openConnection(&esp01, 0, "UDP", "192.168.1.166", 6666);
+
+		//check for data
+		while( esp8266_checkForRxPacket(&esp01, temporaryString1) != 0); //wait until some data is get
+		bitbangUARTmessage(temporaryString1);
+		debugOutput("\n\r");
+
 		esp8266_leaveAP(&esp01);
 		esp8266_sendCommandAndReadResponse(&esp01, "AT+CIPSTATUS", temporaryString1);
 		delay(2000);
 		esp8266_sendCommandAndReadResponse(&esp01, "AT+RST", temporaryString1);
 		delay(3000);
 
-		l11uxx_uart_spewBuffer();
-
+		//l11uxx_uart_spewBuffer();
+		bitbangUARTmessage("--PROGRAM FINISHED--\n\r");
 	while(1); //I don't want to continue.
 
 	HW_test_lcd_5110_welcome();

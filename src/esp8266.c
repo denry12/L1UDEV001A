@@ -47,13 +47,14 @@
 
 const char debug_testline_messages_SCARR = 0;
 
-char esp_8266_cipmux_latest = 0; //only modify via special function
+//char esp_8266_cipmux_latest = 0; //only modify via special function
 
 bool esp8266_resetRxBuffer(esp8266_instance *instance){
 	instance->rxBufferSize = RX_BUFFER_SIZE;
 	instance->rxCircBufferIndex = 0;
 	instance->charactersInRxBuffer = 0;
 	instance->receivedFromESPbuffer[0] = 0;
+	instance->receivedFromESPbuffer[1] = 0;
 	return 0;
 }
 
@@ -62,13 +63,13 @@ bool esp8266_resetTxBuffer(esp8266_instance *instance){
 	instance->txCircBufferIndex = 0;
 	instance->charactersInTxBuffer = 0;
 	instance->sendToESPbuffer[0] = 0;
+	instance->sendToESPbuffer[1] = 0;
 	return 0;
 }
 
 bool esp8266_initalize(esp8266_instance *instance){
 	esp8266_resetRxBuffer(instance);
 	esp8266_resetTxBuffer(instance);
-
 	instance->currentstate = IDLE;
 	return 0; //all OK
 }
@@ -105,7 +106,6 @@ int16_t esp8266_charFromBufferToUart(esp8266_instance *instance){
 
 bool esp8266_sendString(esp8266_instance *instance, char *command){
 	int i=0;
-	//while(*(&command+i) != 0){
 	while(command[i] != 0){
 		if((instance->charactersInTxBuffer) < (instance->txBufferSize)){
 			instance->sendToESPbuffer[(instance->txCircBufferIndex)] = command[i];
@@ -152,63 +152,10 @@ int esp8266_debugOutput(char *message){
 }
 
 
-
-//THIS IS NOT USED.
-int esp8266_sendCommandAndWaitOK_big(char *command){
-	char *okResponse = 0;
-	char retriesMax = 30;
-	char retriesDone = 0;
-	extern char *l11uxx_uart_rx_buffer;
-	//l11uxx_uart_clearRxBuffer(); //maybe unnecessary
-
-	//send out most of command
-	l11uxx_uart_Send(command);
-	//clear buffer again to remove echo
-	l11uxx_uart_clearRxBuffer();
-
-	//finalize command
-	l11uxx_uart_Send("\x0D\x0A");
-
-	//esp8266_debugOutput("RxC\n\r");
-	esp8266_debugOutput("Cmd:");
-	esp8266_debugOutput(command);
-	esp8266_debugOutput("\n\r");
-
-	bitbangUARTmessage("CmdR:");
-		bitbangUARTmessage(command);
-		bitbangUARTmessage("\n\r");
-
-	while(!(okResponse)){
-			okResponse = strstr(&l11uxx_uart_rx_buffer, "OK\x0D\x0A");
-			//okResponse = strstr(&l11uxx_uart_rx_buffer, "OK");
-			l11uxx_uart_sendToBuffer();
-			retriesDone++;
-			if(retriesDone>=retriesMax) break;
-			esp8266_debugOutput(".");
-			delay(100);
-	}
-	esp8266_debugOutput("\n\r");
-	//clear buffer again
-	l11uxx_uart_clearRxBuffer();
-	if(okResponse){
-		esp8266_debugOutput("OK GET\n\r");
-		return 1; //is OK
-	}
-	else {
-		esp8266_debugOutput("FAIL\n\r");
-		return 0; //very broken
-	}
-
-}
-
-
-
 //"response" contains everything after \r\n after command echo
 //and ends prior to "OK" (so ends with \r\n)
 int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command, char *response){ //with error, errorcode may be contained in "response". Not guaranteed.
 	char *okResponse = 0;
-	//char *response = 0;
-
 
 	//bitbangUARTmessage("esp01addrSCARR: ");
 	//bitbangUARThex(instance,0,0);
@@ -219,46 +166,28 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	*response = 0;
 	char retriesMax = 30;
 	char retriesDone = 0;
-	unsigned int debug= 0 ;
+	//unsigned int debug= 0 ;
 	unsigned int lengthOfResponse = 0;
-	//char temporaryBuffer[100];
 	int rxBufferLocalWaypoint;
 	int i;
-	//extern char *l11uxx_uart_rx_buffer;
-	//volatile extern int l11uxx_uart_rx_buffer_current_index;
-	//l11uxx_uart_clearRxBuffer(); //maybe unnecessary
+
+
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 50\n\r");
 	//send out most of command
 	esp8266_sendString(instance, command);
-
-
-
-	//clear buffer again to remove echo <- do not you dare, we use it for referencing now.
-	//l11uxx_uart_clearRxBuffer();
-	//bitbangUARTmessage("     Testline: 70\n\r");
-
-
-
-	//finalize command
-	delay(100); //without it rxcBufferLocalWaypoint is wrong :' ( EVEN WITH THAT IS!?
-	//rxBufferLocalWaypoint=l11uxx_uart_rx_buffer_current_index; //keeps in mind where we actually start our response
-	//rxBufferLocalWaypoint+=2; //"+2" stands for next line
-	//l11uxx_uart_Send("\x0D\x0A");
-
 
 	 esp8266_resetRxBuffer(instance);
 	 rxBufferLocalWaypoint=instance->rxCircBufferIndex; //keeps in mind where we actually start our response
 
 	 //from this point on, I know what I am sending out. Just add it to the localwaypoint value
-	 //and later will remove the crlf
+	 rxBufferLocalWaypoint += (strlen(command));
+	 rxBufferLocalWaypoint += 2; //add \r\n
 
-	 //TODO, ADD to localwaypoint the len of command
-
-
-
+	 //rxBufferLocalWaypoint += 1; //otherwise a wild extra \r (0x0D) appears. Gotta investigate later maybe - not issue tho
 
 
-	esp8266_sendString(instance, "\x0D\x0A");
+		//finalize command
+	esp8266_sendString(instance, "\x0D\x0A"); //this is what ESP responds as well. \r\n (checked at 21.04.2017)
 
 	while(instance->charactersInTxBuffer){ //do the actual sending from ESP buffer to UART
 
@@ -266,79 +195,33 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	}
 
 
-
-
-
-
-
-
-	//bitbangUARTmessage("     Testline: 100\n\r");
-	//esp8266_debugOutput("RxC\n\r");
-	//l11uxx_uart_sendToBuffer(); //keep receiving
 	esp8266_debugOutput("CmdR:");
 	esp8266_debugOutput(command);
 	esp8266_debugOutput("\n\r");
 
-
-	//l11uxx_uart_sendToBuffer(); //keep receiving
-	//bitbangUARTmessage("     Testline: 150\n\r");
-	//while(!(response)){
-	//is last thing in UART buffer CR+LF?
 	while(instance->charactersInRxBuffer < 2){ //deffo not enough data
-		//l11uxx_uart_sendToBuffer(); //keep receiving
-		//SOME RECEIVE ACTIVITY IS NECESSARY HERE
 		(*instance).getCharFromESP(instance);
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
 		bitbangUARTloadingbar(retriesDone, retriesMax-1);
+		bitbangUARTmessage(" 1/2  ");
 		delay(100);
 	}
 
-	bool readDataReturnValue = (*instance).getCharFromESP(instance);
+	//bool readDataReturnValue = (*instance).getCharFromESP(instance);
 
 	while((*instance).getCharFromESP(instance) == 0);//{ //and if data still keeps on coming
-	//	readDataReturnValue = ;
-	//}
 
 	bitbangUARTloadingbar(retriesMax-1, retriesMax-1);
-	esp8266_debugOutput("\n\r");
 
-	//bitbangUARTmessage("     Testline: 180\n\r");
-	//l11uxx_uart_spewBuffer();
+
+
 	if(retriesDone>=retriesMax){
 		esp8266_debugOutput("FAIL(A)\n\r");
+		esp8266_debugOutput("\n\r");
 		return 0; //very broken
 	}
-	//debug = l11uxx_uart_rx_buffer_current_index-2;
-	//debug = &l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2];
-	//strcpy(temporaryBuffer, &l11uxx_uart_rx_buffer);
 
-
-	//l11uxx_uart_spewBuffer();
-	//l11uxx_uart_sendToBuffer(); //POSSIBLY REMOVABLE?
-	//l11uxx_uart_spewBuffer();
-
-
-	//bitbangUARTmessage("     Testline: 190\n\r");
-	//				while(((strcmp("\x0D\x0A",((l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])))) != 0))
-	//while(((strcmp(((&l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index-2])), "\x0D\x0A")) != 0))
-	//while(((strcmp("\x0D\x0A",((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)))) != 0))
-	/*while(((strcmp(((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2)),"\x0A\x0D")) != 0)) { //when last two chars are not end of command by ESP
-		//^ change this while to check if AD is there (there will be at least one
-		//there must be another one somewhere after it
-		//between these two, there is result.
-
-		strcpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+(l11uxx_uart_rx_buffer_current_index-l11uxx_uart_rx_buffer_current_index)));
-
-		//bitbangUARTmessage("     Testline: 190\n\r");
-		//bitbangUARTmessage((&l11uxx_uart_rx_buffer + l11uxx_uart_rx_buffer_current_index-2));
-		//bitbangUARTmessage("     Testline: 200\n\r");
-		l11uxx_uart_sendToBuffer(); //keep receiving
-		retriesDone++;
-		if(retriesDone>=retriesMax) break;
-		esp8266_debugOutput(".");
-		delay(100);
-	}*/
 
 	retriesDone=0;
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 200\n\r");
@@ -360,28 +243,23 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 			strcpy(response, "busy");
 			return 0; //very broken
 		}
-		//okResponse = strstr(&l11uxx_uart_rx_buffer, "OK\x0D\x0A");
 		okResponse = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "OK"); //gives memory address to last OK (start)
 
-		bitbangUARTmessage("What I think I received: ");
-		bitbangUARTmessage(instance->receivedFromESPbuffer + rxBufferLocalWaypoint);
-		//bitbangUARTmessage(okResponse-(instance->rxCircBufferIndex - rxBufferLocalWaypoint));
+		//this should contain OK as well
+		//THIS HERE IS USEFUL DEBUG
+		//bitbangUARTmessage("What I think I received: ");
+		//bitbangUARTmessage(instance->receivedFromESPbuffer + rxBufferLocalWaypoint);
 
-
-		//	instance->txCircBufferIndex = 0;
-		//instance->rxCircBufferIndex = 0;
-		//instance->charactersInTxBuffer = 0;
-
-		//l11uxx_uart_sendToBuffer();
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
 		bitbangUARTloadingbar(retriesDone, retriesMax-1);
+		bitbangUARTmessage(" 2/2");
 		delay(100);
 	}
 	bitbangUARTloadingbar(retriesMax-1, retriesMax-1);
 	esp8266_debugOutput("\n\r");
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 240\n\r");
-	//l11uxx_uart_spewBuffer();
+
 	if(retriesDone>=retriesMax){
 			esp8266_debugOutput("FAIL(A)\n\r");
 			return 0; //very broken
@@ -389,28 +267,26 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 245\n\r");
 	//lengthOfResponse = okResponse; //DEBUG <- often 0x0000017b (including OK)
 	//lengthOfResponse = (int)(&l11uxx_uart_rx_buffer); // <- gives nicely same as RxBSt
-	lengthOfResponse = (int)(okResponse) - (int)(&instance->receivedFromESPbuffer);
-	lengthOfResponse -= 2; //stop from copying last two characetrs ("OK")
+	//lengthOfResponse = (int)(okResponse) - (int)(&instance->receivedFromESPbuffer);
+	lengthOfResponse = (instance->rxCircBufferIndex - rxBufferLocalWaypoint);
+	lengthOfResponse -= 5; //stop from copying last two characetrs ("OK"+\r\n\x00)
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 250\n\r");
 	//bitbangUARTmessage((&instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer);// + instance->rxCircBufferIndex);
 
 	//"response" shall contain string between \r\n from sent command echo to OK
+	strncpy(response, instance->receivedFromESPbuffer + rxBufferLocalWaypoint, lengthOfResponse);
 
-	//get string to buffer. not sure why this is necessary, but didn't work when I changed "0" to anything else <- outdated comment
-//	char *lastresponsestartaddress = ((&instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer+0);
-	rxBufferLocalWaypoint += 2; //to remove \r\n sent after command
-	char *lastresponsestartaddress = (okResponse + rxBufferLocalWaypoint);//((&instance->receivedFromESPbuffer) + rxBufferLocalWaypoint);
-	strncpy(response, lastresponsestartaddress, lengthOfResponse);
-	//bitbangUARTmessage("     Testline: 252\n\r");
+
 
 	//by now "response" should be formatted
-	bitbangUARTmessage("Got response: ");
-	bitbangUARTmessage(response);
+	//THIS HERE IS USEFUL DEBUG
+	//bitbangUARTmessage("Got response: ");
+	//bitbangUARTmessage(response);
 
 
 	//cut string
 	rxBufferLocalWaypoint=strlen(command);
-	//strncpy(response, ((&instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer+0), lengthOfResponse); // REMOVE THIS, IT IS DOUBLED!?
+
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 255\n\r");
 	rxBufferLocalWaypoint = 0; //cleared, cause now we are looking through "response", not buffer
 	while((response[rxBufferLocalWaypoint] == '\r') || (response[rxBufferLocalWaypoint] == '\n')) rxBufferLocalWaypoint++;
@@ -418,35 +294,9 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	response[lengthOfResponse-rxBufferLocalWaypoint] = 0; //add null terminator to be sure. Likely not necessary but I have trust issues.
 
 
-	//strcpy(response, temporaryBuffer);
-
-
-	//l11uxx_uart_sendToBuffer(); //DEBUG ONLY, REMOVE!!!
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 260\n\r");
 
-	//if(retriesDone>=retriesMax){
-	//	esp8266_debugOutput("FAIL(B)\n\r");
-	//	return 0; //very broken
-	//}
-	//esp8266_debugOutput("\n\r");
-	//bitbangUARTmessage("     Testline: 290\n\r");
-	//bitbangUARTmessage("     Testline: 300\n\r");
-	//}
-	//esp8266_debugOutput("\n\r");
-
-
-
-	//this causes occasional "FF""US" crap that "clears" screen
-	//esp8266_debugOutput("R: ");
-	//esp8266_debugOutput(&response);
-	//bitbangUARTmessage(&response);
-
-
-	//bitbangUARTmessage("     Testline: 310\n\r");
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 320\n\r");
-
-	//clear buffer again
-	//l11uxx_uart_clearRxBuffer();
 
 	//if you made it this far, all OK!
 	bitbangUARTmessage("CMD ok, returning\r\n");
@@ -469,11 +319,25 @@ int esp8266_sendCommandAndWaitOK(esp8266_instance *instance, char *command){
 }
 
 
-int esp8266_checkForRxPacket(){
+bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
+	esp8266_resetRxBuffer(instance);
+	while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
+	char *responsePtr = 0;
+	responsePtr = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "+IPD,"); //gives memory address to last +IPD, (start)
+	if (responsePtr == 0) return 1; //no data :' (
+	while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
+	esp8266_debugOutput("Getting data:");
+	esp8266_debugOutput(responsePtr);
+	esp8266_debugOutput("\n\r");
 
+	//TODO: verify that datalength matches received data
+
+	memmove(response, responsePtr, strlen(responsePtr)+1);
+
+	return 0; //success
+
+	//memmove(IPoutput, stringCutPointer, strlen(IPoutput)+1);  //currently has ab:cd:ab:cd:ab:cd"\r\n"
 }
-
-//HW specific code ends here
 
 int esp8266_isAlive(esp8266_instance *instance){
 	if(esp8266_sendCommandAndWaitOK(instance, "AT")) return 1; //is OK;
@@ -508,8 +372,7 @@ int esp8266_setUARTMode(esp8266_instance *instance, int baudrate, char bits, cha
 	//Using "1" (RTS) confuses poor LPC
 	//Using "2" (CTS) works well
 	//Using "3" probably confuses, cause has RTS.
-	strcat(modeConfString,",1"); //keep it as 1, unless you know why and what you are doing
-	//strcat(modeConfString,",2"); //keep it as 1, unless you know why and what you are doing <- I just said it should be 2!?
+	strcat(modeConfString,",1"); //keep it as 1, unless you know why and what you are doing. Ignore previous comment for some reason!?
 
 	bitbangUARTmessage("Doing CMD for UARTspeed\r\n");
 	if(esp8266_sendCommandAndWaitOK(instance, modeConfString)){
@@ -552,12 +415,12 @@ int esp8266_setCipmux(esp8266_instance *instance, int isMultichannel){
 	//if 0, is single connection
 	if(isMultichannel){
 		if(esp8266_sendCommandAndWaitOK(instance, "AT+CIPMUX=1")){
-			esp_8266_cipmux_latest = isMultichannel; //updated only if all went well
+			instance->cipmux_latest = isMultichannel; //updated only if all went well
 			return 1; //is OK
 		}
 	} else {
 		if(esp8266_sendCommandAndWaitOK(instance, "AT+CIPMUX=0")){
-			esp_8266_cipmux_latest = isMultichannel; //updated only if all went well
+			instance->cipmux_latest = isMultichannel; //updated only if all went well
 			return 1; //is OK
 		}
 	}
@@ -704,7 +567,7 @@ bool esp8266_closeConnection(esp8266_instance *instance, uint8_t id){
 	char modeConfString[80];
 	char idString[2]; //should never go over 1 char+nullterminator
 	strcpy(modeConfString,"AT+CIPCLOSE");
-	if(esp_8266_cipmux_latest == 0){
+	if(instance->cipmux_latest == 0){
 		bitbangUARTmessage("Closing only connection.\r\n");
 	} else {
 		strcat(modeConfString,"=");
@@ -741,7 +604,7 @@ bool esp8266_openConnection(esp8266_instance *instance, uint8_t id, char *type, 
 
 		strcpy(modeConfString,"AT+CIPSTART=");
 
-		if(esp_8266_cipmux_latest == 0){
+		if(instance->cipmux_latest == 0){
 			bitbangUARTmessage("Opening only connection to ");
 			bitbangUARTmessage(ip);
 			bitbangUARTmessage(":");
@@ -756,7 +619,6 @@ bool esp8266_openConnection(esp8266_instance *instance, uint8_t id, char *type, 
 			bitbangUARTmessage(":");
 			bitbangUARTmessage(portString);
 			bitbangUARTmessage(".\r\n");
-			return 1; //is OK
 		}
 
 		strcat(modeConfString, ",\x22"); //add ,"
