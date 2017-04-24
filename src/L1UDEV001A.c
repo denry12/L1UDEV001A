@@ -25,7 +25,7 @@
 
 //hwtests
 
-//#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
 //#define WIFI_SSID "4A50DD"
 #define WIFI_SSID "Test-asus"
@@ -429,7 +429,7 @@ int main(void) {
 
 		esp8266_setCipmux(&esp01, 1); //multiple connections, yay
 
-		esp8266_joinAP(&esp01, WIFI_SSID, WIFI_PASSWD);
+		while( esp8266_joinAP(&esp01, WIFI_SSID, WIFI_PASSWD) != 0) bitbangUARTmessage("Trying wificonnect again\n\r");;
 
 		bitbangUARThex(temporaryString1,3,8);
 		bitbangUARTmessage("Cipstatus response request\n\r");
@@ -444,11 +444,25 @@ int main(void) {
 		esp8266_getOwnMAC(&esp01, temporaryString1);
 		delay(2000);
 
-		//attempt to get TCP connection somewhere
+		//esp8266_connection_instance homeLink;
+		//esp8266_connLayer_init(&esp01, &homeLink, "UDP", "192.168.1.166", 6666);
+
+
+
+		//attempt to get UDP connection somewhere
 		esp8266_openConnection(&esp01, 0, "UDP", "192.168.1.166", 6666);
 
 		//check for data
-		while( esp8266_checkForRxPacket(&esp01, temporaryString1) != 0); //wait until some data is get
+		bitbangUARTmessage("WAITING 2 DATAPACKETS\r\n");
+		while(esp01.rxPacketCount < 2)esp8266_receiveHandler(&esp01); //wait until some data is get
+		bitbangUARTmessage("PRINTING 3 DATAPACKETS\r\n");
+		esp8266_getData(&esp01, temporaryString1);
+		bitbangUARTmessage(temporaryString1);
+		debugOutput("\n\r");
+		esp8266_getData(&esp01, temporaryString1);
+		bitbangUARTmessage(temporaryString1);
+		debugOutput("\n\r");
+		esp8266_getData(&esp01, temporaryString1);
 		bitbangUARTmessage(temporaryString1);
 		debugOutput("\n\r");
 

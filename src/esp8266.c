@@ -54,7 +54,7 @@ bool esp8266_resetRxBuffer(esp8266_instance *instance){
 	instance->rxCircBufferIndex = 0;
 	instance->charactersInRxBuffer = 0;
 	instance->receivedFromESPbuffer[0] = 0;
-	instance->receivedFromESPbuffer[1] = 0;
+	instance->receivedFromESPbuffer[1] = 0; //hopefully not necessary
 	return 0;
 }
 
@@ -63,14 +63,19 @@ bool esp8266_resetTxBuffer(esp8266_instance *instance){
 	instance->txCircBufferIndex = 0;
 	instance->charactersInTxBuffer = 0;
 	instance->sendToESPbuffer[0] = 0;
-	instance->sendToESPbuffer[1] = 0;
+	instance->sendToESPbuffer[1] = 0; //hopefully not necessary
 	return 0;
 }
 
 bool esp8266_initalize(esp8266_instance *instance){
 	esp8266_resetRxBuffer(instance);
 	esp8266_resetTxBuffer(instance);
-	instance->currentstate = IDLE;
+	instance->currentstate = ESP8266_STATE_IDLE;
+	instance->rxPacketCount = 0;
+	instance->rxPacketBufferSize = RX_PACKET_CONTENT_MAX_SIZE*RX_PACKET_MAX_COUNT;
+	instance->rxPacketBufferIndex = 0;
+	instance->rxPacketBuffer[0] = 0;
+	instance->rxPacketBuffer[1] = 0; //hopefully not necessary
 	return 0; //all OK
 }
 
@@ -448,7 +453,7 @@ int esp8266_joinAP(esp8266_instance *instance, char *ssid, char *passwd){
 	strcat(modeConfString,passwd);
 	strcat(modeConfString,"\x22"); //" character
 
-	if(esp8266_sendCommandAndWaitOK(instance, modeConfString)) return 1; //is OK;
+	if(esp8266_sendCommandAndWaitOK(instance, modeConfString)) return 0; //is OK;
 	//likely timed out
 	//check status
 	strcpy(modeConfString,"");
@@ -459,11 +464,11 @@ int esp8266_joinAP(esp8266_instance *instance, char *ssid, char *passwd){
 			//bitbangUARTmessage("!!\n\r");
 			if(strstr(modeConfString, "STATUS:2")){
 				bitbangUARTmessage("Wifi connected succesfully!!\n\r");
-				return 1;
+				return 0;
 			} else {
 				//gets OK response but does not contain STATUS:"
 				bitbangUARTmessage("Wifi connect failed.\n\r");
-				return 0; //very broken
+				return 1; //very broken
 			}
 		}
 		else if(strstr(modeConfString, "busy")){
@@ -479,7 +484,7 @@ int esp8266_joinAP(esp8266_instance *instance, char *ssid, char *passwd){
 	}
 
 
-	return 0; //very broken
+	return 1; //very broken
 }
 
 int esp8266_leaveAP(esp8266_instance *instance){
@@ -487,10 +492,10 @@ int esp8266_leaveAP(esp8266_instance *instance){
 	bitbangUARTmessage("Ditching AP\n\r");
 	if(esp8266_sendCommandAndWaitOK(instance, "AT+CWQAP")){
 		bitbangUARTmessage("Ditched AP successfully\n\r");
-		return 1; //is OK
+		return 0; //is OK
 	}
 	bitbangUARTmessage("AP ditch fail\n\r");
-	return 0; //very broken
+	return 1; //very broken
 
 }
 
@@ -511,7 +516,7 @@ int esp8266_getOwnIP(esp8266_instance *instance, char *IPoutput){
 		if(!(stringCutPointer)){
 					bitbangUARTmessage("IP string not found\n\r");
 					bitbangUARTmessage("No IP 4 U\n\r");
-					return 0; //very broken
+					return 1; //very broken
 				}
 		stringCutPointer[0] = 0; 						//and slam a null terminator there
 														//NB! No \r\n
@@ -520,10 +525,10 @@ int esp8266_getOwnIP(esp8266_instance *instance, char *IPoutput){
 		//debug = (int)(&IPoutput);
 		bitbangUARTmessage((IPoutput));
 		bitbangUARTmessage("\n\r");
-		return 1; //is OK
+		return 0; //is OK
 	}
 	bitbangUARTmessage("No IP 4 U\n\r");
-	return 0; //very broken
+	return 1; //very broken
 }
 
 
@@ -547,7 +552,7 @@ int esp8266_getOwnMAC(esp8266_instance *instance, char *IPoutput){
 		if(!(stringCutPointer)){
 			bitbangUARTmessage("MAC string not found\n\r");
 			bitbangUARTmessage("No MAC 4 U\n\r");
-			return 0; //very broken
+			return 1; //very broken
 		}
 		//bitbangUARTmessage("4");
 		stringCutPointer[0] = 0; 						//and slam a null terminator there
@@ -557,10 +562,10 @@ int esp8266_getOwnMAC(esp8266_instance *instance, char *IPoutput){
 		//debug = (int)(&IPoutput);
 		bitbangUARTmessage((IPoutput));
 		bitbangUARTmessage("\n\r");
-		return 1; //is OK
+		return 0; //is OK
 	}
 	bitbangUARTmessage("No MAC 4 U\n\r");
-	return 0; //very broken
+	return 1; //very broken
 }
 
 bool esp8266_closeConnection(esp8266_instance *instance, uint8_t id){
@@ -581,10 +586,10 @@ bool esp8266_closeConnection(esp8266_instance *instance, uint8_t id){
 
 	if(esp8266_sendCommandAndWaitOK(instance, modeConfString)){
 		bitbangUARTmessage("Closed.\r\n");
-		return 1; //is OK
+		return 0; //is OK
 	}
 	bitbangUARTmessage("Not closed.\r\n");
-	return 0; //very broken
+	return 1; //very broken
 }
 
 bool esp8266_openConnection(esp8266_instance *instance, uint8_t id, char *type, char *ip, uint16_t port){
@@ -630,30 +635,156 @@ bool esp8266_openConnection(esp8266_instance *instance, uint8_t id, char *type, 
 		strcat(modeConfString, ","); //add ,
 		strcat(modeConfString, portString); //UDP local port
 		strcat(modeConfString, ",0"); //add , and "destination peer entity of UDP will not change"
-	} else return 0; //very broken, I only support TCP and UDP
+	} else return 1; //very broken, I only support TCP and UDP
 
 	if(esp8266_sendCommandAndWaitOK(instance, modeConfString)){
 		bitbangUARTmessage("Opened.\r\n");
-		return 1; //is OK
+		return 0; //is OK
 	}
 	bitbangUARTmessage("Not opened.\r\n");
-	return 0; //very broken
+	return 1; //very broken
 }
 
 int esp8266_sendData(esp8266_instance *instance, uint8_t id, int length, char *data[]){
 
-	return 0; //very broken
-	return 1; //is OK
+	return 1; //very broken
+	return 0; //is OK
 }
 
-int esp8266_getData(esp8266_instance *instance, int id, int length, char data[]){
+bool esp8266_receiveHandler(esp8266_instance *instance){
+	int i=0;
+	char temporaryString1[RX_PACKET_CONTENT_MAX_SIZE];
+	if (esp8266_checkForRxPacket(instance, (temporaryString1))){
+		//got new data
+		instance->rxPacketPointer[instance->rxPacketCount] = &(instance->rxPacketBuffer[instance->rxPacketBufferIndex]);
 
-	return 0; //very broken
-	return 1; //is OK
+		//copy it to packet buffer
+		while(temporaryString1[i] != 0){ //NB! This line assumes packet may not contain 0x00
+			instance->rxPacketBuffer[instance->rxPacketBufferIndex] = temporaryString1[i];
+			instance->rxPacketBufferIndex++;
+			i++;
+
+			//if need to go circular
+			if(instance->rxPacketBufferIndex > instance->rxPacketBufferSize) instance->rxPacketBufferIndex = 0;
+		}
+		instance->rxPacketCount++;
+	}
+
+	return 0; //is OK
 }
+
+//
+//bool esp8266_receiveHandler(esp8266_instance *instance){
+//	return 1; //very broken
+//
+//	int rxPointerSize = sizeof(instance->oldestRxPointer);
+//	char temporaryString1[rxPointerSize+RX_PACKET_CONTENT_MAX_SIZE];
+//	int i = 0;
+//	int *currentPacketPointer = 0;
+//
+//	if (esp8266_checkForRxPacket(instance, ((temporaryString1)+rxPointerSize))){
+//		//we have new data!
+//		instance->rxPackets += 1;
+//		for(i=0; i<rxPointerSize; i++) temporaryString1[i] = 0; //set the "next packet address" to 0
+//
+//		//find newest packet without next packet ID (where it is 0)
+//		while (*currentPacketPointer != 0) currentPacketPointer = *instance->oldestRxPointer;
+//
+//
+//	}
+//
+//	//no new data but still all cool
+//	return 0; //is OK
+//
+//}
+
+int esp8266_getData(esp8266_instance *instance, char *data){ //gets oldest packet from rxPacketBuffer
+	int i = 0;
+
+	//check if any data available
+	if (instance->rxPacketCount == 0) return 1; //can't read what ain't there
+
+
+	//read out oldest packet
+	char *packetStartPointer = instance->rxPacketPointer[0];
+	while(instance->rxPacketPointer[i] != 0){//NB! This line assumes packet may not contain 0x00
+		if((packetStartPointer + i) > (&instance->rxPacketBuffer[instance->rxPacketBufferSize] )) //going circular
+			packetStartPointer -= sizeof(instance->rxPacketBuffer[0] * instance->rxPacketBufferSize); //reduce address by buffer size
+		data[i] = *(packetStartPointer+i);
+		i++;
+	}
+
+	instance->rxPacketCount--; //make sure everyone knows packet was read out
+
+	//adjust the pointers
+	i = 0;
+	while (i < instance->rxPacketCount){
+		instance->rxPacketBuffer[i] = instance->rxPacketBuffer[i+1];
+		i++;
+	}
+
+
+	return 0; //is OK
+}
+
+
 
 //int esp8266_getNetworkList(){
 //
 //	return 0; //very broken
 //	return 1; //is OK
+//}
+
+
+
+
+
+//socket level stuff starts here
+
+//bool esp8266_connLayer_init(esp8266_instance *instance, esp8266_connection_instance *conn, char *conntype, char *targetIP, uint16_t *targetPort){
+//	conn->txBufferSize = TX_BUFFER_SIZE;
+//	conn->rxBufferSize = RX_BUFFER_SIZE;
+//	conn->rxBufferIndex = 0;
+//	conn->txBufferIndex = 0;
+//	conn->charsInRxBuffer = 0;
+//	conn->charsInTxBuffer = 0;
+//	conn->txBuffer[0] = 0;
+//	conn->rxBuffer[0] = 0;
+//	conn->owner = instance;
+//	conn->deadBuffer = 0;
+//
+//	bool result;
+//	result = esp8266_openConnection(instance, instance->openConnections, conntype, targetIP, targetPort);
+//	if(result == 0){
+//		//was success
+//		instance->openConnections++;
+//		return 0; //all good
+//	}
+//
+//
+//	return 1; //smth wrong
+//}
+//
+//bool esp8266_connLayer_addSend(esp8266_connection_instance *conn, char *dataToSend){
+//	int dataLength = strlen(dataToSend);
+//	strcat(conn->txBuffer, dataToSend);
+//	conn->txBufferIndex += dataLength;
+//	conn->txBuffer[conn->txBufferIndex+1] = 0; //add 0 terminator cause I am paranoid
+//	return 0; //all good
+//	return 1; //smth wrong
+//}
+//
+////THIS CONNLAYER STOPPED MAKING SENSE CAUSE I NEED TO REFER TO CONNECTION LAYERS SOMEHOW NOT ONLY ESP INSTANCE. ALL OF THEM. (cause RX)
+////how about just enum the socket IDs?
+//
+//bool esp8266_connLayer_handleBuffers(esp8266_instance *instance){
+//	int currentConn = 0;
+//
+//	//handle Rx according to ID
+//
+//	while (currentConn < instance->openConnections){
+//		//do transfers according to connBuffers
+//		//if(
+//		currentConn++;
+//	}
 //}
