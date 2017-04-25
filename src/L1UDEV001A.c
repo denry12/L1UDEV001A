@@ -493,20 +493,24 @@ int main(void) {
 		//attempt to get UDP connection somewhere. NECESSARY FOR RECEIVE ONLY TOO
 		//esp8266_openConnection(&esp01, 0, "UDP", "192.168.1.166", 6666);
 		esp8266_openConnection(&esp01, 0, "UDP", "192.168.173.1", 6666);
-
+		esp8266_openConnection(&esp01, 1, "TCP", "192.168.173.1", 6667);
+		esp8266_sendData(&esp01, 0, 9, "DATA PLS.");
+		esp8266_sendData(&esp01, 1, 10, "TCP HELLO!");
 		//check for data
 		bitbangUARTmessage("WAITING 2 DATAPACKETS\r\n");
 		while(esp01.rxPacketCount < 2)esp8266_receiveHandler(&esp01); //wait until some data is get
 		bitbangUARTmessage("PRINTING 3 DATAPACKETS\r\n");
-		esp8266_getData(&esp01, temporaryString1);
+		esp8266_getData(&esp01, temporaryString1, &i, &j);
 		bitbangUARTmessage(temporaryString1);
 		debugOutput("\n\r");
-		esp8266_getData(&esp01, temporaryString1);
+		esp8266_getData(&esp01, temporaryString1, &i, &j);
 		bitbangUARTmessage(temporaryString1);
 		debugOutput("\n\r");
-		esp8266_getData(&esp01, temporaryString1);
+		esp8266_getData(&esp01, temporaryString1, &i, &j);
 		bitbangUARTmessage(temporaryString1);
 		debugOutput("\n\r");
+
+		esp8266_sendData(&esp01, 0, 9, "GOT DATA!");
 
 		esp8266_leaveAP(&esp01);
 		esp8266_sendCommandAndReadResponse(&esp01, "AT+CIPSTATUS", temporaryString1);

@@ -196,11 +196,14 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 		//finalize command
 	esp8266_sendString(instance, "\x0D\x0A"); //this is what ESP responds as well. \r\n (checked at 21.04.2017)
 
+	instance->currentstate = ESP8266_STATE_TXNEEDED;
+
 	while(instance->charactersInTxBuffer){ //do the actual sending from ESP buffer to UART
 
 		(*instance).sendCharToESP(instance);
 	}
 
+	instance->currentstate = ESP8266_STATE_WAITINGRESPONSE;
 
 	esp8266_debugOutput("CmdR:");
 	esp8266_debugOutput(command);
@@ -226,6 +229,7 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	if(retriesDone>=retriesMax){
 		esp8266_debugOutput("FAIL(A)\n\r");
 		esp8266_debugOutput("\n\r");
+		instance->currentstate = ESP8266_STATE_IDLE;
 		return 0; //very broken
 	}
 
@@ -238,16 +242,19 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 		if(strstr(&instance->receivedFromESPbuffer, "ERROR")){
 			esp8266_debugOutput("FAIL(E)\n\r");
 			strcpy(response, "ERROR");
+			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
 		if(strstr(&instance->receivedFromESPbuffer, "FAIL")){
 			esp8266_debugOutput("FAIL(F)\n\r");
 			strcpy(response, "FAIL");
+			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
 		if(strstr(&instance->receivedFromESPbuffer, "busy")){
 			esp8266_debugOutput("FAIL(b)\n\r");
 			strcpy(response, "busy");
+			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
 		okResponse = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "OK"); //gives memory address to last OK (start)
@@ -269,6 +276,7 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 
 	if(retriesDone>=retriesMax){
 			esp8266_debugOutput("FAIL(A)\n\r");
+			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 	}
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 245\n\r");
@@ -307,6 +315,7 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 
 	//if you made it this far, all OK!
 	bitbangUARTmessage("CMD ok, returning\r\n");
+	instance->currentstate = ESP8266_STATE_IDLE;
 	return 1; //is OK
 	return 0; //very broken
 
@@ -326,6 +335,7 @@ int esp8266_sendCommandAndWaitOK(esp8266_instance *instance, char *command){
 }
 
 
+//returns response starting after "+IPD,", so it starts with connection ID.
 bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	esp8266_resetRxBuffer(instance);
 	uint16_t packetLen = 0;
@@ -340,9 +350,12 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	if (responsePtr == 0) return 1; //no data :' (
 
 	lenStartPtr = strstr((responsePtr), ","); //gets first comma from "+IPD,"
+	responsePtr = lenStartPtr+1; //this sets "responsePtr" just after first "," in "+IPD,<id>,<len>:"
 	lenStartPtr = strstr((lenStartPtr+1), ","); //gets second comma from "+IPD,<id>,"
 	lenStartPtr += 1; //go past the second comma, this is where length actually starts
 	lenEndPtr = strstr(lenStartPtr, ":");
+
+
 
 	strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
 	packetLen = atoi(lengthString);
@@ -615,12 +628,45 @@ bool esp8266_openConnection(esp8266_instance *instance, uint8_t id, char *type, 
 	char idString[2]; //should never go over 1 char+nullterminator
 	char portString[6]; //should never go over 5 char+nullterminator
 
-
-
 	itoa(id, idString, 10);
 	itoa(port, portString, 10);
 
 	if(strcmp(type, "TCP") == 0){
+		//open link
+		//AT+CIPSTART="TCP","<IP>",<PORT>,<KEEPALIVE> //keepalive e.g. 1000, in seconds.
+
+		//start server?????
+		//AT+CIPSERVER=1,<port>
+
+
+		strcpy(modeConfString,"AT+CIPSTART=");
+
+		if(instance->cipmux_latest == 0){
+			bitbangUARTmessage("Opening only connection to ");
+			bitbangUARTmessage(ip);
+			bitbangUARTmessage(":");
+			bitbangUARTmessage(portString);
+			bitbangUARTmessage(".\r\n");
+		} else {
+			strcat(modeConfString, idString);
+			bitbangUARTmessage("Opening connection ");
+			bitbangUARTmessage(idString);
+			bitbangUARTmessage(" to ");
+			bitbangUARTmessage(ip);
+			bitbangUARTmessage(":");
+			bitbangUARTmessage(portString);
+			bitbangUARTmessage(".\r\n");
+		}
+
+		strcat(modeConfString, ",\x22"); //add ,"
+		strcat(modeConfString, type);
+		strcat(modeConfString, "\x22,\x22"); //add ","
+		strcat(modeConfString, ip);
+		strcat(modeConfString, "\x22,"); //add ",
+		strcat(modeConfString, portString); //TCP remote port
+		strcat(modeConfString, ","); //add ,
+		strcat(modeConfString, "1000"); //keepalivetime
+
 
 	} else if(strcmp(type, "UDP") == 0){
 
@@ -664,9 +710,51 @@ bool esp8266_openConnection(esp8266_instance *instance, uint8_t id, char *type, 
 }
 
 int esp8266_sendData(esp8266_instance *instance, uint8_t id, int length, char *data[]){
+	char modeConfString[80];
+	char idString[2]; //should never go over 1 char+nullterminator
+	char lengthString[5]  = {0, 0, 0, 0, 0}; //should never go over 4 char+nullterminator
+	char *okResponse = 0;
+	strcpy(modeConfString,"AT+CIPSEND=");
 
-	return 1; //very broken
+	if(instance->cipmux_latest != 0){
+		itoa(id, idString, 10);
+		strcat(modeConfString, idString);
+	}
+	strcat(modeConfString,",");
+	itoa(length, lengthString, 10);
+	strcat(modeConfString, lengthString);
+
+	if(esp8266_sendCommandAndWaitOK(instance, modeConfString) == 0){ //returns 1 if all cool cause outdated.
+		instance->currentstate = ESP8266_STATE_IDLE;
+		esp8266_debugOutput("Send FAIL! (not ready)\r\n");
+		return 1; //very broken
+	}
+	instance->currentstate = ESP8266_STATE_WAITINGREADYFORDATA;
+
+	//going slightly deeper
+	esp8266_sendString(instance, data);
+	instance->currentstate = ESP8266_STATE_TXNEEDED;
+
+	while(instance->charactersInTxBuffer){ //do the actual sending from ESP buffer to UART
+
+		(*instance).sendCharToESP(instance);
+	}
+
+	//verify that sending succeeded (looking for "SEND OK" string basically)
+	while((*instance).getCharFromESP(instance) == 0);//{ //and if data still keeps on coming
+
+	okResponse = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "OK"); //gives memory address to last OK (start)
+	if (okResponse == 0){
+		instance->currentstate = ESP8266_STATE_IDLE;
+		esp8266_debugOutput("Send FAIL!\r\n");
+		return 1; //very broken
+	}
+
+	instance->currentstate = ESP8266_STATE_IDLE;
+	esp8266_debugOutput("Send success.\r\n");
 	return 0; //is OK
+
+
 }
 
 bool esp8266_receiveHandler(esp8266_instance *instance){
@@ -685,6 +773,9 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 			//if need to go circular
 			if(instance->rxPacketBufferIndex > instance->rxPacketBufferSize) instance->rxPacketBufferIndex = 0;
 		}
+		instance->rxPacketBuffer[instance->rxPacketBufferIndex] = 0; //add null terminator
+		instance->rxPacketBufferIndex++;
+
 		instance->rxPacketCount++;
 	}
 
@@ -716,28 +807,49 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 //
 //}
 
-int esp8266_getData(esp8266_instance *instance, char *data){ //gets oldest packet from rxPacketBuffer
+int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, uint8_t *id){ //gets oldest packet from rxPacketBuffer
 	int i = 0;
 
 	//check if any data available
 	if (instance->rxPacketCount == 0) return 1; //can't read what ain't there
 
+	int packetLen;
+	char lengthString[4] = {0, 0, 0, 0}; //fill it with null terminators to avoid waiting for 1066 bytes instead of 10
+	char idString[2] = {0, 0}; //fill it with null terminators
 
 	//read out oldest packet
-	char *packetStartPointer = instance->rxPacketPointer[0];
-	while(instance->rxPacketPointer[i] != 0){//NB! This line assumes packet may not contain 0x00
+	//note that packet format is: "<ID>,<length>,<data>"
+	char *idStartPtr = instance->rxPacketPointer[0];
+	char *idEndPtr = (char*)(strstr((idStartPtr), ",")); //gets first comma, after ID and before length
+
+	char *lenStartPtr = idEndPtr+1;
+	char *lenEndPtr = (char*)(strstr((lenStartPtr), ":")); //gets the colon, after length and before data
+
+	strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
+
+	packetLen = (uint16_t)(atoi(lengthString));
+	*id = (uint8_t)(atoi(idString));
+
+	*length = packetLen;
+
+	//char *packetStartPointer = instance->rxPacketPointer[0];
+	char *packetStartPointer = lenEndPtr+1;
+
+
+	while(packetStartPointer[i] != 0){//NB! This line assumes packet may not contain 0x00
 		if((packetStartPointer + i) > (&instance->rxPacketBuffer[instance->rxPacketBufferSize] )) //going circular
 			packetStartPointer -= sizeof(instance->rxPacketBuffer[0] * instance->rxPacketBufferSize); //reduce address by buffer size
 		data[i] = *(packetStartPointer+i);
 		i++;
 	}
+	data[i] = 0; //null terminator! This is necessary because the cycle where it would be added cancels the loop
 
 	instance->rxPacketCount--; //make sure everyone knows packet was read out
 
 	//adjust the pointers
 	i = 0;
 	while (i < instance->rxPacketCount){
-		instance->rxPacketBuffer[i] = instance->rxPacketBuffer[i+1];
+		instance->rxPacketPointer[i] = instance->rxPacketPointer[i+1];
 		i++;
 	}
 
