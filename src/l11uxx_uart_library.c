@@ -74,10 +74,11 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 	//temporaryChar[1] = 0;
 	while ((LPC_USART->LSR & 0x01)){//while data available
 
-		LPC_GPIO->SET[0] = (0x20000); //0_17
+		//LPC_GPIO->SET[0] = (0x20000); //0_17
+		NVIC_DisableIRQ(UART_IRQn);
 		rxBusy=1;
 		*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
-		LPC_GPIO->CLR[0] = (0x20000); //0_17
+		//LPC_GPIO->CLR[0] = (0x20000); //0_17
 			//debugChar = *(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index);
 
 			//bitbangUARTmessage("NewUARTByte: ");
@@ -90,6 +91,7 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 			if(l11uxx_uart_rx_buffer_current_index<L11UXX_UART_RX_BUFFER_LEN) l11uxx_uart_rx_buffer_current_index++;
 			else bitbangUARTmessage("UARTBUFFERFULL!\n\r"); //dang, we're full
 			rxBusy=0;
+			NVIC_EnableIRQ(UART_IRQn);
 			if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
 				//let's wait, maybe slave is slow
 				//delay(10); //uncomment if delay function available <- please note that 10ms is radical delay even for 9600baud

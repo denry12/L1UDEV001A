@@ -25,14 +25,14 @@
 
 //hwtests
 
-#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+//#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
-//#define WIFI_SSID "4A50DD"
-#define WIFI_SSID "Test-asus"
+#define WIFI_SSID "4A50DD"
+//#define WIFI_SSID "Test-asus"
 #endif
 #ifndef WIFI_PASSWD
-//#define WIFI_PASSWD "2444666668888888"
-#define WIFI_PASSWD "24681357"
+#define WIFI_PASSWD "2444666668888888"
+//#define WIFI_PASSWD "24681357"
 #endif
 
 
@@ -278,16 +278,18 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	//bitbangUARTmessage("\r\n");
 
 	//stop interrupts
-	NVIC_DisableIRQ(UART_IRQn);
+	//NVIC_DisableIRQ(UART_IRQn);
 
 	//copy data out and prep for new data
 	char temporaryBuffer[l11uxx_uart_rx_buffer_current_index];
+
 	//memcpy(temporaryBuffer, l11uxx_uart_rx_buffer, l11uxx_uart_rx_buffer_current_index);
 	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+0), l11uxx_uart_rx_buffer_current_index);
+
 	l11uxx_uart_clearRxBuffer();
 
 	//re-enable interrupts
-	NVIC_EnableIRQ(UART_IRQn);
+	//NVIC_EnableIRQ(UART_IRQn);
 
 	//add the null terminator where it should be.
 	//temporaryBuffer[currentIndex] = 0;
@@ -297,7 +299,7 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	//bitbangUARTmessage("\r\n");
 
 	//handle data, send it to ESP buffer
-	while (currentIndex <= (maxIndex + 1)){ //+1 to make sure nullterminator also comes over
+	while (currentIndex < (maxIndex + 0)){ //+1 to make sure nullterminator also comes over
 		if(esp8266_charFromUartToBuffer(instance, temporaryBuffer[currentIndex]) == 0)
 			currentIndex++;
 	}
@@ -389,7 +391,46 @@ int main(void) {
 		//l11uxx_uart_pinSetup(47, 46); //set up to CH340
 			l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
 			l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
-		//l11uxx_uart_init(9600);
+
+
+
+
+
+
+
+
+
+
+			//THIS HERE NEEDS FAKED ESP
+			/*l11uxx_uart_init(9600);
+			//check for data
+			bitbangUARTmessage("WAITING 2 DATAPACKETS\r\n");
+			while(esp01.rxPacketCount < 2)esp8266_receiveHandler(&esp01); //wait until some data is get
+			bitbangUARTmessage("PRINTING 3 DATAPACKETS\r\n");
+			esp8266_getData(&esp01, temporaryString1);
+			bitbangUARTmessage(temporaryString1);
+			debugOutput("\n\r");
+			esp8266_getData(&esp01, temporaryString1);
+			bitbangUARTmessage(temporaryString1);
+			debugOutput("\n\r");
+			esp8266_getData(&esp01, temporaryString1);
+			bitbangUARTmessage(temporaryString1);
+			debugOutput("\n\r");*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 			//check baud for esp8266
@@ -442,15 +483,16 @@ int main(void) {
 		bitbangUARTmessage(temporaryString1);
 		debugOutput("\n\r");
 		esp8266_getOwnMAC(&esp01, temporaryString1);
-		delay(2000);
+		//delay(2000);
 
 		//esp8266_connection_instance homeLink;
 		//esp8266_connLayer_init(&esp01, &homeLink, "UDP", "192.168.1.166", 6666);
 
 
 
-		//attempt to get UDP connection somewhere
-		esp8266_openConnection(&esp01, 0, "UDP", "192.168.1.166", 6666);
+		//attempt to get UDP connection somewhere. NECESSARY FOR RECEIVE ONLY TOO
+		//esp8266_openConnection(&esp01, 0, "UDP", "192.168.1.166", 6666);
+		esp8266_openConnection(&esp01, 0, "UDP", "192.168.173.1", 6666);
 
 		//check for data
 		bitbangUARTmessage("WAITING 2 DATAPACKETS\r\n");

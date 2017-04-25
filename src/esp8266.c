@@ -87,6 +87,8 @@ bool esp8266_charFromUartToBuffer(esp8266_instance *instance, char character){
 	instance->receivedFromESPbuffer[instance->rxCircBufferIndex] = character;
 	instance->receivedFromESPbuffer[instance->rxCircBufferIndex+1] = 0; //add null terminator
 	instance->rxCircBufferIndex++;
+
+	//go circular if necessary
 	if(instance->rxCircBufferIndex > instance->rxBufferSize) instance->rxCircBufferIndex = 0;
 	instance->charactersInRxBuffer++;
 
@@ -326,22 +328,38 @@ int esp8266_sendCommandAndWaitOK(esp8266_instance *instance, char *command){
 
 bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	esp8266_resetRxBuffer(instance);
+	uint16_t packetLen = 0;
+	uint16_t bytesReceived = 0;
+	char lengthString[4] = {0, 0, 0, 0}; //fill it with null terminators to avoid waiting for 1066 bytes instead of 10
 	while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
 	char *responsePtr = 0;
+	char *lenStartPtr = 0;
+	char *lenEndPtr = 0;
 	responsePtr = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "+IPD,"); //gives memory address to last +IPD, (start)
+
 	if (responsePtr == 0) return 1; //no data :' (
-	while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
+
+	lenStartPtr = strstr((responsePtr), ","); //gets first comma from "+IPD,"
+	lenStartPtr = strstr((lenStartPtr+1), ","); //gets second comma from "+IPD,<id>,"
+	lenStartPtr += 1; //go past the second comma, this is where length actually starts
+	lenEndPtr = strstr(lenStartPtr, ":");
+
+	strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
+	packetLen = atoi(lengthString);
+
+	//while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
+	while(bytesReceived <= packetLen){
+		bytesReceived = (&(instance->receivedFromESPbuffer[instance->rxCircBufferIndex]) - lenEndPtr);
+		(*instance).getCharFromESP(instance);
+	}
+
 	esp8266_debugOutput("Getting data:");
 	esp8266_debugOutput(responsePtr);
-	esp8266_debugOutput("\n\r");
+	esp8266_debugOutput("\r\n");
 
-	//TODO: verify that datalength matches received data
-
-	memmove(response, responsePtr, strlen(responsePtr)+1);
+	memmove(response, responsePtr, strlen(responsePtr)+1); //probably could be optimized to remove this line
 
 	return 0; //success
-
-	//memmove(IPoutput, stringCutPointer, strlen(IPoutput)+1);  //currently has ab:cd:ab:cd:ab:cd"\r\n"
 }
 
 int esp8266_isAlive(esp8266_instance *instance){
@@ -654,7 +672,7 @@ int esp8266_sendData(esp8266_instance *instance, uint8_t id, int length, char *d
 bool esp8266_receiveHandler(esp8266_instance *instance){
 	int i=0;
 	char temporaryString1[RX_PACKET_CONTENT_MAX_SIZE];
-	if (esp8266_checkForRxPacket(instance, (temporaryString1))){
+	if (esp8266_checkForRxPacket(instance, (temporaryString1)) == 0){
 		//got new data
 		instance->rxPacketPointer[instance->rxPacketCount] = &(instance->rxPacketBuffer[instance->rxPacketBufferIndex]);
 
