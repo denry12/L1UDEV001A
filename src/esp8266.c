@@ -428,16 +428,16 @@ int esp8266_setMode(esp8266_instance *instance, int mode){
 	//3 = both
 	switch(mode){
 		case 1:
-			if(esp8266_sendCommandAndWaitOK(instance, "AT+CWMODE=1")) return 1; //is OK
+			if(esp8266_sendCommandAndWaitOK(instance, "AT+CWMODE_CUR=1")) return 0; //is OK
 			break;
 		case 2:
-			if(esp8266_sendCommandAndWaitOK(instance, "AT+CWMODE=2")) return 1; //is OK
+			if(esp8266_sendCommandAndWaitOK(instance, "AT+CWMODE_CUR=2")) return 0; //is OK
 			break;
 		default:
-			if(esp8266_sendCommandAndWaitOK(instance, "AT+CWMODE=3")) return 1; //is OK
+			if(esp8266_sendCommandAndWaitOK(instance, "AT+CWMODE_CUR=3")) return 0; //is OK
 			break;
 	}
-	return 0; //very broken
+	return 1; //very broken
 }
 
 //int esp8266_getNetworkList(){

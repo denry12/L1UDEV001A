@@ -21,6 +21,7 @@
 //#include "UART1114.h"
 #include "esp8266.h"
 #include "bitbangUART.h"
+#include "hd44780.h"
 
 
 //hwtests
@@ -147,16 +148,18 @@ void setupClocks(){
 	LPC_SYSCON->PDRUNCFG &= (~(1<<4)); //power up ADC
 	LPC_SYSCON->PDRUNCFG &= (~(1<<6)); //power up WDT osc
 	//page 30 of usermanual
+	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<5); //enable clock to I2C
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<7); //enable clock to CT16B0
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<8); //enable clock to CT16B1
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<9); //enable clock to CT32B0
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<10); //enable clock to CT32B1
-	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<15); //enable clock to WDT
-	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<12); //enable clock to USART
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<13); //enable clock to ADC
+	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<15); //enable clock to WDT
+	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
 //	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
 	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
+	LPC_SYSCON->PRESETCTRL |= (1 << 1); //remove reset from I2C
 	LPC_SYSCON->PRESETCTRL |= (1 << 2); //remove reset from SSP1
 
 
@@ -307,6 +310,13 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	return 0;
 }
 
+
+//bool hd44780lcds_handler(){
+//
+//	return 0; //all cool
+//}
+
+
 int main(void) {
 
 	//printf("Hello, this is app.");
@@ -344,16 +354,74 @@ int main(void) {
 	bitbangUARThex(&esp01,0,0);
 	bitbangUARTmessage("\r\n");
 
+	int i=0, j=0;
+	int debug=0;
+
+	volatile char temporaryString1[300], temporaryString2[40];
+
+	hd44780_instance i2cLCD01up;
+	i2cLCD01up.I2C_addr = (int)(0x27);
+	hd44780_init(&i2cLCD01up, 40, 2, 0);
+
+	uint8_t LCDMSN, LCDRS, LCDRW, LCDE, LCDdatabyte;
+
+
+	l11uxx_i2c_pinSetup(15, 16);
+	l11uxx_i2c_init();
+
+	//PCF-to-LCD pinout
+	//PCF P0 = LCD RS (pin 4)
+	//PCF P1 = LCD RW (pin 5)
+	//PCF P2 = LCD E  (pin 6)
+	//PCF P3 = LCD BL (E2, pin 15)
+	//PCF P4 = LCD D4
+	//PCF P5 = LCD D5
+	//PCF P6 = LCD D6
+	//PCF P7 = LCD D7
+
+	while(1){
+
+
+
+		if(hd44780_getFromTxBuffer(&i2cLCD01up, &LCDMSN, &LCDRS, &LCDRW, &LCDE) == 0){
+			//got a packet to send
+			l11uxx_i2c_sendStart();
+			LCDdatabyte = 0;
+			l11uxx_i2c_sendAddr(i2cLCD01up.I2C_addr, 0);
+
+			//l11uxx_i2c_sendStop();
+
+			//bitbangUARTmessage("E: ");
+			//bitbangUARThex(((uint8_t)(LCDE)),0,0);
+			if (LCDE){
+			bitbangUARTmessage("; RS: ");
+			bitbangUARThex(((uint8_t)(LCDRS)),0,0);
+			bitbangUARTmessage("; frombuffer: ");
+			bitbangUARTbin(((uint8_t)(LCDMSN)),0,8);
+			bitbangUARTmessage("\r\n");
+			}
+
+
+
+			LCDdatabyte |= LCDMSN;
+			LCDdatabyte |= (LCDE  & 0x01) << 2;
+			LCDdatabyte |= (LCDRW & 0x01) << 1;
+			LCDdatabyte |= (LCDRS & 0x01) << 0;
+			l11uxx_i2c_sendByte(LCDdatabyte);
+			l11uxx_i2c_sendStop();
+		}
+
+		delay(1);
+
+	}
+
 	//esp01.getCharFromESP();
 	//esp01.sendCharToESP();
 
 	//HW_test_getFlashID();
 	//HW_test_uartToSPIconverter(1); //never returns (careful, it didn't find the function for some reason when I commented it out. Might need to create header
 
-	int i=0, j=0;
-	int debug=0;
 
-	volatile char temporaryString1[300], temporaryString2[40];
 
 
 	//HW_test_lowerpower(500);
@@ -468,7 +536,9 @@ int main(void) {
 		//delay(100);
 		esp8266_isAlive(&esp01);
 
+		esp8266_setMode(&esp01, 1);
 		esp8266_setCipmux(&esp01, 1); //multiple connections, yay
+
 
 		while( esp8266_joinAP(&esp01, WIFI_SSID, WIFI_PASSWD) != 0) bitbangUARTmessage("Trying wificonnect again\n\r");;
 
