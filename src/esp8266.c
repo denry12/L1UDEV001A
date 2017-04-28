@@ -765,7 +765,14 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 		instance->rxPacketPointer[instance->rxPacketCount] = &(instance->rxPacketBuffer[instance->rxPacketBufferIndex]);
 
 		//copy it to packet buffer
-		while(temporaryString1[i] != 0){ //NB! This line assumes packet may not contain 0x00
+		if(i >= RX_PACKET_CONTENT_MAX_SIZE-1 ) return 1; //getting creepily close.
+		while((i <= RX_PACKET_CONTENT_MAX_SIZE-2) && (temporaryString1[i] != 0)){ //NB! This line assumes packet may not contain 0x00
+
+			if (i == (RX_PACKET_CONTENT_MAX_SIZE-1)){
+				esp8266_debugOutput("Received packet too big, crash imminent!? \r\n");
+				return 1;
+			}
+
 			instance->rxPacketBuffer[instance->rxPacketBufferIndex] = temporaryString1[i];
 			instance->rxPacketBufferIndex++;
 			i++;

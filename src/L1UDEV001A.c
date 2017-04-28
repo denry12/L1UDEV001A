@@ -27,6 +27,7 @@
 //hwtests
 
 //#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+#include "le_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
 #define WIFI_SSID "4A50DD"
 //#define WIFI_SSID "Test-asus"
@@ -311,11 +312,74 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 }
 
 
-//bool hd44780lcds_handler(){
-//
-//	return 0; //all cool
-//}
+bool hd44780lcd_handler(hd44780_instance *instance){
+	uint8_t LCDMSN, LCDRS, LCDRW, LCDE, LCDdatabyte;
 
+	bool dataInvalid = 1;
+
+	dataInvalid = hd44780_getFromTxBuffer(instance, &LCDMSN, &LCDRS, &LCDRW, &LCDE);
+
+
+	//PCF-to-LCD pinout
+	//PCF P0 = LCD RS (pin 4)
+	//PCF P1 = LCD RW (pin 5)
+	//PCF P2 = LCD E  (pin 6)
+	//PCF P3 = LCD BL (E2, pin 15)
+	//PCF P4 = LCD D4
+	//PCF P5 = LCD D5
+	//PCF P6 = LCD D6
+	//PCF P7 = LCD D7
+
+
+
+	while(dataInvalid == 0){
+		dataInvalid = hd44780_getFromTxBuffer(instance, &LCDMSN, &LCDRS, &LCDRW, &LCDE);
+		//got a packet to send
+		l11uxx_i2c_sendStart();
+		LCDdatabyte = 0;
+		l11uxx_i2c_sendAddr(instance->I2C_addr, 0);
+
+		//l11uxx_i2c_sendStop();
+
+		//bitbangUARTmessage("E: ");
+		//bitbangUARThex(((uint8_t)(LCDE)),0,0);
+		/*if (LCDE){
+			bitbangUARTmessage("; RS: ");
+			bitbangUARThex(((uint8_t)(LCDRS)),0,0);
+			bitbangUARTmessage("; frombuffer: ");
+			bitbangUARTbin(((uint8_t)(LCDMSN)),0,8);
+			bitbangUARTmessage("\r\n");
+		}*/
+
+
+
+		LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
+		LCDdatabyte |= ((LCDE   & 0x01) << instance->I2C_pinE_offset);
+		LCDdatabyte |= ((LCDRW  & 0x01) << 1);
+		LCDdatabyte |= ((LCDRS  & 0x01) << 0);
+		l11uxx_i2c_sendByte(LCDdatabyte);
+		l11uxx_i2c_sendStop();
+		//delay(1);
+	}
+
+	return dataInvalid; //if 0, all cool
+}
+
+bool printSmallPercent(hd44780_instance *instance, uint8_t percentValue){
+	if (percentValue < 10){
+		hd44780_lcdcursor(instance, 38, 1);
+	} else if (percentValue < 100){
+		hd44780_lcdcursor(instance, 37, 1);
+	} else {
+		hd44780_lcdcursor(instance, 36, 1);
+	}
+	char temporaryString[4];
+	itoa(percentValue, temporaryString, 10);
+
+	hd44780_printtext(instance, temporaryString);
+	hd44780_printtext(instance, "%");
+	return 0;
+}
 
 int main(void) {
 
@@ -356,34 +420,82 @@ int main(void) {
 
 	int i=0, j=0;
 	int debug=0;
+	char *ptrForStrstr=0;
+	int lcdcursortempY=0;
+	int lcdcursortempX=0;
 
 	volatile char temporaryString1[300], temporaryString2[40];
-
-	hd44780_instance i2cLCD01up;
-	i2cLCD01up.I2C_addr = (int)(0x27);
-	hd44780_init(&i2cLCD01up, 40, 2, 0);
-
-	uint8_t LCDMSN, LCDRS, LCDRW, LCDE, LCDdatabyte;
-
 
 	l11uxx_i2c_pinSetup(15, 16);
 	l11uxx_i2c_init();
 
-	//PCF-to-LCD pinout
-	//PCF P0 = LCD RS (pin 4)
-	//PCF P1 = LCD RW (pin 5)
-	//PCF P2 = LCD E  (pin 6)
-	//PCF P3 = LCD BL (E2, pin 15)
-	//PCF P4 = LCD D4
-	//PCF P5 = LCD D5
-	//PCF P6 = LCD D6
-	//PCF P7 = LCD D7
-
-	while(1){
+	hd44780_instance i2cLCD01up;
+	hd44780_instance i2cLCD01dn;
 
 
+	i2cLCD01up.I2C_addr = (uint8_t)(0x27);
+	i2cLCD01up.handlerFunction = &hd44780lcd_handler;
+	hd44780_init(&i2cLCD01up, 40, 2, 0);
+	//i2cLCD01dn.I2C_pinE_offset = (uint8_t)(2); //this should not be necessary but I am desperate
 
-		if(hd44780_getFromTxBuffer(&i2cLCD01up, &LCDMSN, &LCDRS, &LCDRW, &LCDE) == 0){
+
+	i2cLCD01dn.I2C_addr = (uint8_t)(0x27);
+	i2cLCD01dn.handlerFunction = &hd44780lcd_handler;
+	hd44780_init(&i2cLCD01dn, 40, 2, 0);
+	i2cLCD01dn.I2C_pinE_offset = (uint8_t)(3); //cause using BL pin as E
+
+
+
+
+
+
+	hd44780lcd_handler(&i2cLCD01up);
+	hd44780lcd_handler(&i2cLCD01dn);
+
+
+	hd44780_clear(&i2cLCD01dn);
+	hd44780_clear(&i2cLCD01up);
+
+
+	//hd44780lcd_handler(&i2cLCD01up);
+	//hd44780lcd_handler(&i2cLCD01dn);
+	hd44780_printtext(&i2cLCD01up, "INIT 1...");
+	hd44780_printtext(&i2cLCD01dn, "INIT 2...");
+	//hd44780lcd_handler(&i2cLCD01up);
+	//hd44780lcd_handler(&i2cLCD01dn);
+	hd44780_lcdcursor(&i2cLCD01dn, 20, 1);
+	//hd44780_printtext(&i2cLCD01up, "hy");
+	//hd44780_printtext(&i2cLCD01dn, "xy");
+	//hd44780_printtext(&i2cLCD01dn, "1234567890123456789");
+	hd44780_printtext(&i2cLCD01dn, "Second line");
+
+
+	hd44780_disp_cursor(&i2cLCD01up, 1, 0, 0); //remove cursor
+	hd44780_disp_cursor(&i2cLCD01dn, 1, 0, 0); //remove cursor
+	hd44780_clear(&i2cLCD01up);
+	hd44780_clear(&i2cLCD01dn);
+	hd44780_lcdcursor(&i2cLCD01up, 15, 0);
+	hd44780_printtext(&i2cLCD01up, "Connecting");
+	hd44780_lcdcursor(&i2cLCD01up, 19, 1);
+	hd44780_printtext(&i2cLCD01up, "to");
+	hd44780_lcdcursor(&i2cLCD01dn, 20-(strlen(WIFI_SSID)/2), 0);
+	hd44780_printtext(&i2cLCD01dn, WIFI_SSID);
+	hd44780_lcdcursor(&i2cLCD01dn, 20-(strlen(WIFI_PASSWD)/2), 1);
+	hd44780_printtext(&i2cLCD01dn, WIFI_PASSWD);
+
+	printSmallPercent(&i2cLCD01dn, 0);
+	//printSmallPercent(&i2cLCD01dn, 50);
+	//printSmallPercent(&i2cLCD01dn, 99);
+	//printSmallPercent(&i2cLCD01dn, 100);
+
+	//while(1){
+
+		//hd44780lcd_handler(&i2cLCD01up);
+		//hd44780lcd_handler(&i2cLCD01dn);
+
+
+		/*
+		while(hd44780_getFromTxBuffer(&i2cLCD01up, &LCDMSN, &LCDRS, &LCDRW, &LCDE) == 0){
 			//got a packet to send
 			l11uxx_i2c_sendStart();
 			LCDdatabyte = 0;
@@ -403,17 +515,47 @@ int main(void) {
 
 
 
-			LCDdatabyte |= LCDMSN;
-			LCDdatabyte |= (LCDE  & 0x01) << 2;
-			LCDdatabyte |= (LCDRW & 0x01) << 1;
-			LCDdatabyte |= (LCDRS & 0x01) << 0;
+			LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
+			LCDdatabyte |= ((LCDE   & 0x01) << 2);
+			LCDdatabyte |= ((LCDRW  & 0x01) << 1);
+			LCDdatabyte |= ((LCDRS  & 0x01) << 0);
 			l11uxx_i2c_sendByte(LCDdatabyte);
 			l11uxx_i2c_sendStop();
 		}
 
-		delay(1);
 
-	}
+		//problem with second one: it hustles with E pin. Empty out buffer for one first, then do the second
+		while(hd44780_getFromTxBuffer(&i2cLCD01dn, &LCDMSN, &LCDRS, &LCDRW, &LCDE) == 0){
+					//got a packet to send
+					l11uxx_i2c_sendStart();
+					LCDdatabyte = 0;
+					l11uxx_i2c_sendAddr(i2cLCD01dn.I2C_addr, 0);
+
+					//l11uxx_i2c_sendStop();
+
+					//bitbangUARTmessage("E: ");
+					//bitbangUARThex(((uint8_t)(LCDE)),0,0);
+					if (LCDE){
+					bitbangUARTmessage("; RS: ");
+					bitbangUARThex(((uint8_t)(LCDRS)),0,0);
+					bitbangUARTmessage("; frombuffer: ");
+					bitbangUARTbin(((uint8_t)(LCDMSN)),0,8);
+					bitbangUARTmessage("\r\n");
+					}
+
+
+
+					LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
+					LCDdatabyte |= ((LCDE   & 0x01) << 3);
+					LCDdatabyte |= ((LCDRW  & 0x01) << 1);
+					LCDdatabyte |= ((LCDRS  & 0x01) << 0);
+					l11uxx_i2c_sendByte(LCDdatabyte);
+					l11uxx_i2c_sendStop();
+		}
+		*/
+
+
+		//delay(1);
 
 	//esp01.getCharFromESP();
 	//esp01.sendCharToESP();
@@ -502,6 +644,7 @@ int main(void) {
 
 
 			//check baud for esp8266
+			printSmallPercent(&i2cLCD01dn, 0*100/9);
 			l11uxx_uart_init(9600);
 			debugOutput("9600?\n\r");
 			if(esp8266_isAlive(&esp01) == 0){
@@ -517,17 +660,19 @@ int main(void) {
 					if(esp8266_isAlive(&esp01) == 0) debugOutput("ESP comm fail!\n\r");; //idk, massive fail
 				}
 			}
-
+		printSmallPercent(&i2cLCD01dn, 1*100/9);
 
 		//esp8266_sendCommandAndWaitOK("AT+UART?");
 		esp8266_isAlive(&esp01);
-
+		printSmallPercent(&i2cLCD01dn, 2*100/9);
 		//esp8266_SWreset(&esp01);
 		//l11uxx_uart_init(115200); //because SWreset
 		//esp8266_isAlive(&esp01);
 
 		esp8266_setUARTMode(&esp01, 9600, 8, 3, 0, 0);
+		printSmallPercent(&i2cLCD01dn, 3*100/9);
 		l11uxx_uart_init(9600);
+		printSmallPercent(&i2cLCD01dn, 4*100/9);
 		//esp8266_setUARTMode(&esp01, 115200, 8, 3, 0, 0);
 		//l11uxx_uart_init(115200);
 
@@ -535,12 +680,17 @@ int main(void) {
 		//delay(1000);
 		//delay(100);
 		esp8266_isAlive(&esp01);
+		printSmallPercent(&i2cLCD01dn, 5*100/9);
 
 		esp8266_setMode(&esp01, 1);
+		printSmallPercent(&i2cLCD01dn, 6*100/9);
 		esp8266_setCipmux(&esp01, 1); //multiple connections, yay
+		printSmallPercent(&i2cLCD01dn, 7*100/9);
 
 
 		while( esp8266_joinAP(&esp01, WIFI_SSID, WIFI_PASSWD) != 0) bitbangUARTmessage("Trying wificonnect again\n\r");;
+
+		printSmallPercent(&i2cLCD01dn, 8*100/9);
 
 		bitbangUARThex(temporaryString1,3,8);
 		bitbangUARTmessage("Cipstatus response request\n\r");
@@ -549,8 +699,52 @@ int main(void) {
 		bitbangUARThex(temporaryString1,3,8);
 		bitbangUARTmessage(temporaryString1);
 		//debug = (int)(temporaryString1);
+		printSmallPercent(&i2cLCD01dn, 9*100/9);
 		esp8266_getOwnIP(&esp01, temporaryString1);
 		bitbangUARTmessage(temporaryString1);
+
+		hd44780_clear(&i2cLCD01up);
+		hd44780_clear(&i2cLCD01dn);
+		hd44780_lcdcursor(&i2cLCD01up, 18, 1);
+		hd44780_printtext(&i2cLCD01up, "IP:");
+		hd44780_lcdcursor(&i2cLCD01dn, 8, 0);
+		hd44780_printtext(&i2cLCD01dn, temporaryString1);
+		hd44780_printtext(&i2cLCD01dn, ":6666");
+
+		esp8266_openConnection(&esp01, 0, "UDP", "192.168.173.1", 6666);
+		while(1){
+			//get packet and handle LCD accordingly
+			while(esp01.rxPacketCount < 1)esp8266_receiveHandler(&esp01); //wait until some data is get
+			//esp8266_sendData(&esp01, 0, 10, "PACKET GET");
+			esp8266_getData(&esp01, temporaryString1, &i, &j);
+			bitbangUARTmessage(temporaryString1);
+			ptrForStrstr = 0;
+			ptrForStrstr = strstr(temporaryString1, "LCDCLR");
+			if(ptrForStrstr){
+				//packet contains LCD clear request
+				hd44780_clear(&i2cLCD01up);
+				hd44780_clear(&i2cLCD01dn);
+			}
+			ptrForStrstr = 0;
+			ptrForStrstr = strstr(temporaryString1, "LCDCRS:");
+			if(ptrForStrstr){
+				//packet contains LCD cursor location, e.g. "LCDCRS:01,03";
+				strcpy(temporaryString2, ptrForStrstr+7);
+				lcdcursortempX = atoi(temporaryString2);
+				strcpy(temporaryString2, ptrForStrstr+7+3);
+				lcdcursortempY = atoi(temporaryString2);
+				//lcdcursortempY =
+				if(lcdcursortempY<=1) hd44780_lcdcursor(&i2cLCD01up, lcdcursortempX, lcdcursortempY);
+				else hd44780_lcdcursor(&i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2));
+			}
+			ptrForStrstr = 0;
+			ptrForStrstr = strstr(temporaryString1, "LCDTXT:");
+			if(ptrForStrstr){
+				//packet contains LCD text data
+				if (lcdcursortempY <= 1) hd44780_printtext(&i2cLCD01up, (ptrForStrstr+7));
+				else hd44780_printtext(&i2cLCD01dn, (ptrForStrstr+7));
+			}
+		}
 		debugOutput("\n\r");
 		esp8266_getOwnMAC(&esp01, temporaryString1);
 		//delay(2000);
@@ -562,7 +756,7 @@ int main(void) {
 
 		//attempt to get UDP connection somewhere. NECESSARY FOR RECEIVE ONLY TOO
 		//esp8266_openConnection(&esp01, 0, "UDP", "192.168.1.166", 6666);
-		esp8266_openConnection(&esp01, 0, "UDP", "192.168.173.1", 6666);
+
 		esp8266_openConnection(&esp01, 1, "TCP", "192.168.173.1", 6667);
 		esp8266_sendData(&esp01, 0, 9, "DATA PLS.");
 		esp8266_sendData(&esp01, 1, 10, "TCP HELLO!");

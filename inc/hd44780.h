@@ -10,7 +10,7 @@
 
 //number of commands that can be prepared
 //note that this is used as 8-bit value so keep it below 255 or modify as necessary
-#define HD44780_TX_BUFFER_SIZE 80
+#define HD44780_TX_BUFFER_SIZE 250
 
 #define HD44780_RS_BIT	4
 #define HD44780_RW_BIT	5
@@ -43,10 +43,13 @@ typedef struct {
 	//I2C related variables
 	bool (*bufferToLCD_i2c)();
 	uint8_t I2C_addr;
+	uint8_t I2C_pinE_offset;
 
 	//4-bit related variables
 	bool (*bufferToLCD_4bitData)();						//function to set data pins
 	bool (*bufferToLCD_4bitControl)();						//function to set various other pins, e.g. E
+
+	bool (*handlerFunction)(); //handler function
 
 } hd44780_instance;
 

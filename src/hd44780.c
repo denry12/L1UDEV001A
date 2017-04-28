@@ -5,7 +5,7 @@
  *      Author: denry
  */
 
-
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "hd44780.h"
@@ -166,13 +166,22 @@ void hd44780_lcdclear(){
 
 
 bool hd44780_addToTxBuffer(hd44780_instance *instance, uint16_t *command){
-	if(instance->LCDCommandsInBuffer < instance->LCDCommandBufferSize){
+	if(instance->LCDCommandsInBuffer < (instance->LCDCommandBufferSize - 2)){
 		instance->LCDCommandBuffer[instance->LCDCommandBufferIndex] = command;
 		instance->LCDCommandBufferIndex++;
 		instance->LCDCommandsInBuffer++;
 		if(instance->LCDCommandBufferIndex >= instance->LCDCommandBufferSize) instance->LCDCommandBufferIndex = 0; //go circular if necessary
+		//bitbangUARTmessage("x");
+		//while((*instance).handlerFunction(instance) == 0); //empty buffer a bit then
 	}
-	else return 1; //catastrophe (can't fit, buffer full)
+	//else return 1; //catastrophe (can't fit, buffer full)
+	else {
+		bitbangUARTmessage("LCD BUFFER FULL!\r\n");
+		while((*instance).handlerFunction(instance) == 0); //empty buffer a bit then
+		return hd44780_addToTxBuffer(instance, &command);
+		//return 0; //and return success
+
+	}
 	return 0; //everything success
 
 }
@@ -234,6 +243,50 @@ bool hd44780_addDataToBuffer(hd44780_instance *instance, uint16_t command){ //8-
 	//return 1; //catastrophe
 }
 
+bool hd44780_incrementcursor(hd44780_instance *instance, bool directionToRight){
+	bool response = 0;
+	hd44780_addInstructionToBuffer(instance, (0b00010000 | (directionToRight << 2))); //increment
+	while((*instance).handlerFunction(instance) == 0); //empty buffer a bit
+	return response;
+}
+
+bool hd44780_lcdcursor(hd44780_instance *instance, uint8_t x, uint8_t y){
+	bool response = 0;
+	response |= hd44780_addInstructionToBuffer(instance, (1<<1)); //return cursor home
+	x=x+40*y;
+	while (x>0){
+		hd44780_addInstructionToBuffer(instance, 0b00010100); //increment
+		x--;
+	}
+	while((*instance).handlerFunction(instance) == 0); //empty buffer a bit
+	return response;
+}
+
+bool hd44780_printtext(hd44780_instance *instance, char *text){ //lcdword("Denry");
+  int i, len;
+  bool response = 0;
+  len=strlen(text);
+  for(i=0; i<len; i++){
+	  response |= hd44780_addDataToBuffer(instance, text[i]);
+  }
+  while((*instance).handlerFunction(instance) == 0); //empty buffer a bit
+  return response;
+}
+
+bool hd44780_clear(hd44780_instance *instance){
+	bool response = 0;
+	response |= hd44780_addInstructionToBuffer(instance, 0x01); //clear display
+	while((*instance).handlerFunction(instance) == 0); //empty buffer a bit
+	return response;
+}
+
+bool hd44780_disp_cursor(hd44780_instance *instance, bool displayState, bool cursorVisible, bool cursorBlink){
+	bool response = 0;
+	response |= hd44780_addInstructionToBuffer(instance, (1<<3)|(displayState<<2)|(cursorVisible<<1)|(cursorBlink<<0));
+	while((*instance).handlerFunction(instance) == 0); //empty buffer a bit
+	return response;
+}
+
 bool hd44780_init(hd44780_instance *instance, uint8_t columns, uint8_t *rows, bool *fiveTimesTen){
 //  lcdshift(0b00000000);
 //lcdshift(0b); //LED, D4, D5, D6, D7, RS, RW, BL
@@ -245,26 +298,39 @@ bool hd44780_init(hd44780_instance *instance, uint8_t columns, uint8_t *rows, bo
 
   //set 4-bit operation, going slightly deeper
   bool response = 0;
+  //response |= hd44780_addToTxBuffer(instance, 0); // allow the IO to initialize to a known state
+  //response |= hd44780_addToTxBuffer(instance, 0xFF); // allow the IO to initialize to a known state
   response |= hd44780_addToTxBuffer(instance, 0b0010); //only DB5 high
   response |= hd44780_addToTxBuffer(instance, 0b0010 | (1<<HD44780_E_BIT));
   response |= hd44780_addToTxBuffer(instance, 0b0010);
 
+  //and repeat to avoid single nibble
+  //response |= hd44780_addToTxBuffer(instance, 0b0000); //all low now
+  //response |= hd44780_addToTxBuffer(instance, 0b0000 | (1<<HD44780_E_BIT));
+  //response |= hd44780_addToTxBuffer(instance, 0b0000);
+
   if(columns == 1) 	columns = 0;	//one line
   else 				columns = 1;	//two lines
   instance->twoline = columns;
+  instance->I2C_pinE_offset = 2; 	//default is 2, for 4-line LCDs you might need to use 3 as well (with backlight hardware hack)
+
 
   response |= hd44780_addInstructionToBuffer(instance, (1<<5)|(((uint8_t)(columns))<<3)|(((uint8_t)(fiveTimesTen))<<2)); //set 4-bit again, linecount, 5x8 or 5x10
-  response |= hd44780_addInstructionToBuffer(instance, (1<<3)|(1<<2)|(1<<1)|(1<<0)); //enable display, enable cursor, enable cursor blinking
+
+  //response |= hd44780_disp_cursor(instance, 1, 1, 1); //do not use this here, it attempts to do send and during init may send to wrong LCD
+  response |= hd44780_addInstructionToBuffer(instance, (1<<3)|(1<<2)|(1<<1)|(1<<0));
+
   response |= hd44780_addInstructionToBuffer(instance, (1<<2)|(1<<1)); //entry mode, increment cursor each write
+
+  //response |= hd44780_clear(instance); //do not use this here, it attempts to do send and during init may send to wrong LCD
+  response |= hd44780_addInstructionToBuffer(instance, 0x01); //clear display
+
   response |= hd44780_addInstructionToBuffer(instance, (1<<1)); //return cursor home
-  response |= hd44780_addDataToBuffer(instance, 0b01001000); //print H (lol)
-  response |= hd44780_addDataToBuffer(instance, 0b01001001); //print I (lol)
 
-  return response;
+  //response |= hd44780_addDataToBuffer(instance, 0b01001000); //print H
+  //response |= hd44780_printtext(instance, "HELLO"); //<- not allowed, cause attempts to write data again!
 
-  lcdclear(); //this is slow as fuck for some reason
-  printf("LCDclear done \n");
-  lcdcursor(0, 0);
-  printf("Cursor set 0,0 \n");
+  //while((*instance).handlerFunction(instance) == 0); //while can send data, send it //NB! this is bad cause might want to use different E pin
+
   return response;
 }

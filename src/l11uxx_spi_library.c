@@ -134,7 +134,7 @@ int l11uxx_spi_flushRxBuffer(int SPINumber){
 			while ((LPC_SSP1->SR & (0x1 << 2))) garbage = LPC_SSP1->DR; //flush buffer
 
 		}
-	return;
+	return 0;
 }
 
 int l11uxx_spi_receiveByte(int SPINumber){

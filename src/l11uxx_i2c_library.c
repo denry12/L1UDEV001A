@@ -56,7 +56,7 @@ void l11uxx_i2c_sendByte(uint8_t *data){
 	while(!(LPC_I2C->CONSET & (1<<3))); //after START is sent, SI bit is set (wait here until it is)
 	LPC_I2C->DAT = data;
 	LPC_I2C->CONCLR = (1<<3); //clear SI bit
-		while(!(LPC_I2C->CONSET & (1<<3))); //after START is sent, SI bit is set (wait here until it is)
+	while(! (LPC_I2C->CONSET & (1<<3)) ); //after START is sent, SI bit is set (wait here until it is)
 	//LPC_I2C->CONCLR = (1<<3); //clear SI bit
 	//and check states etc. Undone yet. See user manual page 310/523
 	return;
