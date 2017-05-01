@@ -17,6 +17,15 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+# compiled stuff
+*.axf
+*.hex
+*.ld
+*.o
+*.mk
+*.d
+
+
 # =========================
 # Operating System Files
 # =========================
@@ -41,14 +50,4 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
-*.axf
-*.hex
-*.ld
-*.o
-*.mk
-*.axf
-*.ld
-*.mk
-*.d
-*.d
-*.o
+
