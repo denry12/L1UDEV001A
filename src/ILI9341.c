@@ -6,68 +6,143 @@
  */
 
 
-#define ILI9341_LCD_WIDTH 240 //is this 240 or the other one?
-#define ILI9341_LCD_HEIGHT 320
-
-/*
-#include "Adafruit_ILI9340.h"
-#include <avr/pgmspace.h>
-#include <limits.h>
-#include "pins_arduino.h"
-#include "wiring_private.h"
-#include <SPI.h>*/
-/*
-#if defined(__SAM3X8E__)
-#include <include/pio.h>
-  #define SET_BIT(port, bitMask) (port)->PIO_SODR |= (bitMask)
-  #define CLEAR_BIT(port, bitMask) (port)->PIO_CODR |= (bitMask)
-  #define USE_SPI_LIBRARY
-#endif
-#ifdef __AVR__
-  #define SET_BIT(port, bitMask) *(port) |= (bitMask)
-  #define CLEAR_BIT(port, bitMask) *(port) &= ~(bitMask)
-#endif
-#if defined(__arm__) && defined(CORE_TEENSY)
-  #define USE_SPI_LIBRARY
-  #define SET_BIT(port, bitMask) digitalWrite(*(port), HIGH);
-  #define CLEAR_BIT(port, bitMask) digitalWrite(*(port), LOW);
-#endif*/
-
-// Constructor when using software SPI.  All output pins are configurable.
-/*Adafruit_ILI9340::Adafruit_ILI9340(uint8_t cs, uint8_t dc, uint8_t mosi,
-				   uint8_t sclk, uint8_t rst, uint8_t miso) : Adafruit_GFX(ILI9340_TFTWIDTH, ILI9340_TFTHEIGHT) {
-  _cs   = cs;
-  _dc   = dc;
-  _mosi  = mosi;
-  _miso = miso;
-  _sclk = sclk;
-  _rst  = rst;
-  hwSPI = false;
-}
 
 
-// Constructor when using hardware SPI.  Faster, but must use SPI pins
-// specific to each board type (e.g. 11,13 for Uno, 51,52 for Mega, etc.)
-Adafruit_ILI9340::Adafruit_ILI9340(uint8_t cs, uint8_t dc, uint8_t rst) : Adafruit_GFX(ILI9340_TFTWIDTH, ILI9340_TFTHEIGHT) {
-  _cs   = cs;
-  _dc   = dc;
-  _rst  = rst;
-  hwSPI = true;
-  _mosi  = _sclk = 0;
-}*/
+#include <stdint.h>
+#include <stdbool.h>
+#include "ILI9341.h"
 
 
-void ILI9341_CS_enable(){
+int temporaryValue = 0;
+int randomcounter = 0;
+
+bool ILI9341_addToTxBuffer(ili9341_instance *instance, uint16_t *command){
+
+
+
+	int commandlocal = ((int)(command))&0xFFF;
+	if (commandlocal & (1<<ILI9341_CSCHANGE_BIT_IN_BUFFER)) return 0;
 	GPIOSetValue(1, 29, 0);
-	return;
-}
-
-void ILI9341_CS_disable(){
+	if(commandlocal & (1<<ILI9341_DC_BIT_IN_BUFFER)) GPIOSetValue(1, 31, 1);
+	else GPIOSetValue(1, 31, 0);
+	l11uxx_spi_sendByte(1, commandlocal&0xFF);
 	GPIOSetValue(1, 29, 1);
-	return;
+	return 0;
+
+
+
+
+
+	if(instance->LCDCommandsInBuffer < (instance->LCDCommandBufferSize - 2)){
+		instance->LCDCommandBuffer[instance->LCDCommandBufferIndex] = command;
+
+		//if(instance->LCDCommandsInBuffer == 0) //first command going in
+		//	temporaryValue = instance->LCDCommandBufferIndex;
+
+		instance->LCDCommandBufferIndex++;
+		instance->LCDCommandsInBuffer++;
+		if(instance->LCDCommandBufferIndex >= instance->LCDCommandBufferSize)
+			instance->LCDCommandBufferIndex = 0; //go circular if necessary
+		//bitbangUARTmessage("x");
+		//while((*instance).handlerFunction(instance) == 0); //empty buffer a bit then
+	}
+	//else return 1; //catastrophe (can't fit, buffer full)
+	else {
+		bitbangUARTmessage("LCD BUFFER FULL!\r\n");
+		while((*instance).handlerFunction(instance) == 0); //empty buffer a bit then
+		return ILI9341_addToTxBuffer(instance, &command);
+		//return 0; //and return success
+
+	}
+	return 0; //everything success
+
 }
 
-void ILI9341_DC_enable(){ //this sets it high, voltage wise
+bool ILI9341_getFromTxBuffer(ili9341_instance *instance, uint8_t *data, bool *DC, bool *CSchange){
+	int firstUnsentPacket = instance->LCDCommandBufferIndex - instance->LCDCommandsInBuffer;
+	if (firstUnsentPacket < 0)
+		firstUnsentPacket += instance->LCDCommandBufferSize+1;
+	if(instance->LCDCommandsInBuffer){
+		*data =   (uint8_t)(((instance->LCDCommandBuffer[firstUnsentPacket])                                  ) & 0xFF);
+		*DC   =      (bool)(((instance->LCDCommandBuffer[firstUnsentPacket]) >> ILI9341_DC_BIT_IN_BUFFER      ) & 0x01);
+		*CSchange =  (bool)(((instance->LCDCommandBuffer[firstUnsentPacket]) >> ILI9341_CSCHANGE_BIT_IN_BUFFER) & 0x01);
+		instance->LCDCommandsInBuffer--;
+		if(instance->LCDCommandBufferIndex == 0) instance->LCDCommandBufferIndex = instance->LCDCommandBufferSize; //go circular if necessary
+
+	}
+	else return 1; //catastrophe (nothing to read out)
+
+	return 0; //everything success
+}
+
+
+
+bool ILI9341_buffertester(ili9341_instance *instance){
+	uint16_t testval8;
+	bool response = 0;
+	while(temporaryValue < 999){
+		testval8 = (temporaryValue & 0xFF);
+		response |= ILI9341_addToTxBuffer(instance, testval8);
+		temporaryValue++;
+		if(randomcounter > 60){
+			while((*instance).handlerFunction(instance) == 0); //empty buffer a bit then
+			randomcounter = 0;
+		}
+		randomcounter++;
+	}
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+bool ILI9341_CS_enable(ili9341_instance *instance){
+	uint16_t command = ((0xFF) | (1<<ILI9341_CSCHANGE_BIT_IN_BUFFER));
+	bool response = 0;
+	response |= ILI9341_addToTxBuffer(instance, command);
+	return response;
+}
+
+bool ILI9341_CS_disable(ili9341_instance *instance){
+	uint16_t command = ((0x00) | (1<<ILI9341_CSCHANGE_BIT_IN_BUFFER));
+	bool response = 0;
+	response |= ILI9341_addToTxBuffer(instance, command);
+	return response;
+}
+
+//for data, D/C is set low (voltage wise)
+bool ILI9341_addInstructionToBuffer(ili9341_instance *instance, uint16_t command){ //8-bit command: (MSB) D7 D6 D5 D4 D3 D2 D1 D0 (LSB)
+	command = (command & 0xFF);
+	bool response = 0;
+	response |= ILI9341_CS_enable(instance);
+	response |= ILI9341_addToTxBuffer(instance, command);
+	response |= ILI9341_CS_disable(instance);
+	 return response;
+}
+
+//for data, D/C is set high (voltage wise)
+bool ILI9341_addDataToBuffer(ili9341_instance *instance, uint16_t command){ //8-bit command: (MSB) D7 D6 D5 D4 D3 D2 D1 D0 (LSB)
+	command = ((command & 0xFF) | (1<<ILI9341_DC_BIT_IN_BUFFER));
+	bool response = 0;
+	response |= ILI9341_CS_enable(instance);
+	response |= ILI9341_addToTxBuffer(instance, command);
+	response |= ILI9341_CS_disable(instance);
+	return response;
+}
+
+//bool ILI9341_addDataToBuffer_noCS(ili9341_instance *instance, uint16_t command){ //8-bit command: (MSB) D7 D6 D5 D4 D3 D2 D1 D0 (LSB)
+//	command = ((command & 0xFF) | (1<<ILI9341_DC_BIT_IN_BUFFER));
+//	bool response = 0;
+//	response |= ILI9341_addToTxBuffer(instance, command);
+//	return response;
+//}
+
+/*void ILI9341_DC_enable(){ //this sets it high, voltage wise
 	GPIOSetValue(1, 31, 1);
 	return;
 }
@@ -115,102 +190,35 @@ void ILI9341_GPIO_init(){
 	return;
 }
 
-//void Adafruit_ILI9340::spiwrite(uint8_t c) {
-//
-//  //Serial.print("0x"); Serial.print(c, HEX); Serial.print(", ");
-//
-//  if (hwSPI) {
-//#ifdef __AVR__
-//    SPDR = c;
-//    while(!(SPSR & _BV(SPIF)));
-//#endif
-//#if defined(USE_SPI_LIBRARY)
-//    SPI.transfer(c);
-//#endif
-//  } else {
-//    // Fast SPI bitbang swiped from LPD8806 library
-//    for(uint8_t bit = 0x80; bit; bit >>= 1) {
-//      if(c & bit) {
-//        //digitalWrite(_mosi, HIGH);
-//        SET_BIT(mosiport, mosipinmask);
-//      } else {
-//        //digitalWrite(_mosi, LOW);
-//        CLEAR_BIT(mosiport, mosipinmask);
-//      }
-//      //digitalWrite(_sclk, HIGH);
-//      SET_BIT(clkport, clkpinmask);
-//      //digitalWrite(_sclk, LOW);
-//      CLEAR_BIT(clkport, clkpinmask);
-//    }
-//  }
-//}
 
 
-void ILI9341_writecommand(char c) {
-	ILI9341_DC_disable();
+void ILI9341_addInstructionToBuffer(instance,ili9341_instance *instance, char c) {
+	ILI9341_DC_disable(); //dc disable sets low voltage wise, meaning instruction
   //digitalWrite(_dc, LOW);
   //CLEAR_BIT(clkport, clkpinmask);
   //digitalWrite(_sclk, LOW);
-  ILI9341_CS_enable();
+  ILI9341_CS_enable(instance);
   //digitalWrite(_cs, LOW);
 
   //spiwrite(c);
   ILI9341_SPI_send(c);
 
-  ILI9341_CS_disable();
+  ILI9341_CS_disable(instance);
   //digitalWrite(_cs, HIGH);
+
+
+
+
+
+
+
 }
 
 
-void ILI9341_writedata(char c) {
-	ILI9341_DC_enable();
-  //digitalWrite(_dc, HIGH);
-  //CLEAR_BIT(clkport, clkpinmask);
-  //digitalWrite(_sclk, LOW);
-  ILI9341_CS_enable();
-  //digitalWrite(_cs, LOW);
-
-  //spiwrite(c);
-  ILI9341_SPI_send(c);
-
-  //digitalWrite(_cs, HIGH);
-  ILI9341_CS_disable();
-}
-
-// Rather than a bazillion writecommand() and writedata() calls, screen
-// initialization commands and arguments are organized in these tables
-// stored in PROGMEM.  The table may look bulky, but that's mostly the
-// formatting -- storage-wise this is hundreds of bytes more compact
-// than the equivalent code.  Companion function follows.
-//#define DELAY 0x80
-
-// Companion code to the above tables.  Reads and issues
-// a series of LCD commands stored in PROGMEM byte array.
-//void Adafruit_ILI9340::commandList(uint8_t *addr) {
-//
-//  uint8_t  numCommands, numArgs;
-//  uint16_t ms;
-//
-//  numCommands = pgm_read_byte(addr++);   // Number of commands to follow
-//  while(numCommands--) {                 // For each command...
-//    writecommand(pgm_read_byte(addr++)); //   Read, issue command
-//    numArgs  = pgm_read_byte(addr++);    //   Number of args to follow
-//    ms       = numArgs & DELAY;          //   If hibit set, delay follows args
-//    numArgs &= ~DELAY;                   //   Mask out delay bit
-//    while(numArgs--) {                   //   For each argument...
-//      writedata(pgm_read_byte(addr++));  //     Read, issue argument
-//    }
-//
-//    if(ms) {
-//      ms = pgm_read_byte(addr++); // Read post-command delay time (ms)
-//      if(ms == 255) ms = 500;     // If 255, delay for 500 ms
-//      delay(ms);
-//    }
-//  }
-//}
 
 
-void ILI9341_begin(void) {
+*/
+bool ILI9341_begin(ili9341_instance *instance) {
 //  pinMode(_rst, OUTPUT);
 //  digitalWrite(_rst, LOW);
 //  pinMode(_dc, OUTPUT);
@@ -263,156 +271,172 @@ void ILI9341_begin(void) {
 
   // toggle RST low to reset
 
-  ILI9341_RST_disable();
-  delay(5);
-  ILI9341_RST_enable();
-  delay(20);
-  ILI9341_RST_disable();
-  delay(150);
 
+	GPIOSetValue(1, 28, 0); //do reset just in case
+	delay(300);
+	GPIOSetValue(1, 28, 1); //wake from reset
+	delay(300);
 
+	//ILI9341_RST_disable();
+	//delay(5);
+	//ILI9341_RST_enable();
+	//delay(20);
+	//ILI9341_RST_disable();
+	//delay(150);
 
-  ILI9341_writecommand(0xEF); //wtf even is that
-  ILI9341_writedata(0x03);
-  ILI9341_writedata(0x80);
-  ILI9341_writedata(0x02);
+	//ILI9341_CS_enable(instance);
 
-  ILI9341_writecommand(0xCF);
-  ILI9341_writedata(0x00);
-  ILI9341_writedata(0XC1);
-  ILI9341_writedata(0X30);
+	ILI9341_addInstructionToBuffer(instance,0xEF); //wtf even is that
+	ILI9341_addDataToBuffer(instance,0x03);
+	ILI9341_addDataToBuffer(instance,0x80);
+	ILI9341_addDataToBuffer(instance,0x02);
 
-  ILI9341_writecommand(0xED);
-  ILI9341_writedata(0x64);
-  ILI9341_writedata(0x03);
-  ILI9341_writedata(0X12);
-  ILI9341_writedata(0X81);
+	ILI9341_addInstructionToBuffer(instance,0xCF);
+	ILI9341_addDataToBuffer(instance,0x00);
+	ILI9341_addDataToBuffer(instance,0XC1);
+	ILI9341_addDataToBuffer(instance,0X30);
 
-  ILI9341_writecommand(0xE8);
-  ILI9341_writedata(0x85);
-  ILI9341_writedata(0x00);
-  ILI9341_writedata(0x78);
+	ILI9341_addInstructionToBuffer(instance,0xED);
+	ILI9341_addDataToBuffer(instance,0x64);
+	ILI9341_addDataToBuffer(instance,0x03);
+	ILI9341_addDataToBuffer(instance,0X12);
+	ILI9341_addDataToBuffer(instance,0X81);
 
-  ILI9341_writecommand(0xCB);
-  ILI9341_writedata(0x39);
-  ILI9341_writedata(0x2C);
-  ILI9341_writedata(0x00);
-  ILI9341_writedata(0x34);
-  ILI9341_writedata(0x02);
+	ILI9341_addInstructionToBuffer(instance,0xE8);
+	ILI9341_addDataToBuffer(instance,0x85);
+	ILI9341_addDataToBuffer(instance,0x00);
+	ILI9341_addDataToBuffer(instance,0x78);
 
-  ILI9341_writecommand(0xF7);
-  ILI9341_writedata(0x20);
+	ILI9341_addInstructionToBuffer(instance,0xCB);
+	ILI9341_addDataToBuffer(instance,0x39);
+	ILI9341_addDataToBuffer(instance,0x2C);
+	ILI9341_addDataToBuffer(instance,0x00);
+	ILI9341_addDataToBuffer(instance,0x34);
+	ILI9341_addDataToBuffer(instance,0x02);
 
-  ILI9341_writecommand(0xEA);
-  ILI9341_writedata(0x00);
-  ILI9341_writedata(0x00);
+	ILI9341_addInstructionToBuffer(instance,0xF7);
+	ILI9341_addDataToBuffer(instance,0x20);
 
-  //ILI9341_writecommand(ILI9341_PWCTR1);    //Power control
-  ILI9341_writecommand(0xC0);    //Power control
-  ILI9341_writedata(0x23);   //VRH[5:0]
+	ILI9341_addInstructionToBuffer(instance,0xEA);
+	ILI9341_addDataToBuffer(instance,0x00);
+	ILI9341_addDataToBuffer(instance,0x00);
 
-  //ILI9341_writecommand(ILI9341_PWCTR2);    //Power control
-  ILI9341_writecommand(0xC1);    //Power control
-  ILI9341_writedata(0x10);   //SAP[2:0];BT[3:0]
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_PWCTR1);    //Power control
+	ILI9341_addInstructionToBuffer(instance,0xC0);    //Power control
+	ILI9341_addDataToBuffer(instance,0x23);   //VRH[5:0]
 
-  //ILI9341_writecommand(ILI9341_VMCTR1);    //VCM control
-  ILI9341_writecommand(0xC5);    //VCM control
-  ILI9341_writedata(0x3e); //�Աȶȵ���
-  ILI9341_writedata(0x28);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_PWCTR2);    //Power control
+	ILI9341_addInstructionToBuffer(instance,0xC1);    //Power control
+	ILI9341_addDataToBuffer(instance,0x10);   //SAP[2:0];BT[3:0]
 
-  //ILI9341_writecommand(ILI9341_VMCTR2);    //VCM control2
-  ILI9341_writecommand(0xC7);    //VCM control2
-  ILI9341_writedata(0x86);  //--
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_VMCTR1);    //VCM control
+	ILI9341_addInstructionToBuffer(instance,0xC5);    //VCM control
+	ILI9341_addDataToBuffer(instance,0x3e); //�Աȶȵ���
+	ILI9341_addDataToBuffer(instance,0x28);
 
-  //ILI9341_writecommand(ILI9341_MADCTL);    // Memory Access Control
-  ILI9341_writecommand(0x36);    // Memory Access Control
-  //ILI9341_writedata(ILI9341_MADCTL_MX | ILI9341_MADCTL_BGR);
-  ILI9341_writedata(0x40 | 0x08);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_VMCTR2);    //VCM control2
+	ILI9341_addInstructionToBuffer(instance,0xC7);    //VCM control2
+	ILI9341_addDataToBuffer(instance,0x86);  //--
 
-  //ILI9341_writecommand(ILI9341_PIXFMT);
-  ILI9341_writecommand(0x3A);
-  ILI9341_writedata(0x55);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_MADCTL);    // Memory Access Control
+	ILI9341_addInstructionToBuffer(instance,0x36);    // Memory Access Control
+	//ILI9341_addDataToBuffer(instance,ILI9341_MADCTL_MX | ILI9341_MADCTL_BGR);
+	ILI9341_addDataToBuffer(instance,0x40 | 0x08);
 
-  //ILI9341_writecommand(ILI9341_FRMCTR1);
-  ILI9341_writecommand(0xB1);
-  ILI9341_writedata(0x00);
-  ILI9341_writedata(0x18);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_PIXFMT);
+	ILI9341_addInstructionToBuffer(instance,0x3A);
+	ILI9341_addDataToBuffer(instance,0x55);
 
-  //ILI9341_writecommand(ILI9341_DFUNCTR);    // Display Function Control
-  ILI9341_writecommand(0xB6);    // Display Function Control
-  ILI9341_writedata(0x08);
-  ILI9341_writedata(0x82);
-  ILI9341_writedata(0x27);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_FRMCTR1);
+	ILI9341_addInstructionToBuffer(instance,0xB1);
+	ILI9341_addDataToBuffer(instance,0x00);
+	ILI9341_addDataToBuffer(instance,0x18);
 
-  ILI9341_writecommand(0xF2);    // 3Gamma Function Disable
-  ILI9341_writedata(0x00);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_DFUNCTR);    // Display Function Control
+	ILI9341_addInstructionToBuffer(instance,0xB6);    // Display Function Control
+	ILI9341_addDataToBuffer(instance,0x08);
+	ILI9341_addDataToBuffer(instance,0x82);
+	ILI9341_addDataToBuffer(instance,0x27);
 
-  //ILI9341_writecommand(ILI9341_GAMMASET);    //Gamma curve selected
-  ILI9341_writecommand(0x26);    //Gamma curve selected
-  ILI9341_writedata(0x01);
+	ILI9341_addInstructionToBuffer(instance,0xF2);    // 3Gamma Function Disable
+	ILI9341_addDataToBuffer(instance,0x00);
 
-  //ILI9341_writecommand(ILI9341_GMCTRP1);    //Set Gamma
-  ILI9341_writecommand(0xE0);    //Set Gamma
-  ILI9341_writedata(0x0F);
-  ILI9341_writedata(0x31);
-  ILI9341_writedata(0x2B);
-  ILI9341_writedata(0x0C);
-  ILI9341_writedata(0x0E);
-  ILI9341_writedata(0x08);
-  ILI9341_writedata(0x4E);
-  ILI9341_writedata(0xF1);
-  ILI9341_writedata(0x37);
-  ILI9341_writedata(0x07);
-  ILI9341_writedata(0x10);
-  ILI9341_writedata(0x03);
-  ILI9341_writedata(0x0E);
-  ILI9341_writedata(0x09);
-  ILI9341_writedata(0x00);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_GAMMASET);    //Gamma curve selected
+	ILI9341_addInstructionToBuffer(instance,0x26);    //Gamma curve selected
+	ILI9341_addDataToBuffer(instance,0x01);
 
-  //ILI9341_writecommand(ILI9341_GMCTRN1);    //Set Gamma
-  ILI9341_writecommand(0xE1);    //Set Gamma
-  ILI9341_writedata(0x00);
-  ILI9341_writedata(0x0E);
-  ILI9341_writedata(0x14);
-  ILI9341_writedata(0x03);
-  ILI9341_writedata(0x11);
-  ILI9341_writedata(0x07);
-  ILI9341_writedata(0x31);
-  ILI9341_writedata(0xC1);
-  ILI9341_writedata(0x48);
-  ILI9341_writedata(0x08);
-  ILI9341_writedata(0x0F);
-  ILI9341_writedata(0x0C);
-  ILI9341_writedata(0x31);
-  ILI9341_writedata(0x36);
-  ILI9341_writedata(0x0F);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_GMCTRP1);    //Set Gamma
+	ILI9341_addInstructionToBuffer(instance,0xE0);    //Set Gamma
+	ILI9341_addDataToBuffer(instance,0x0F);
+	ILI9341_addDataToBuffer(instance,0x31);
+	ILI9341_addDataToBuffer(instance,0x2B);
+	ILI9341_addDataToBuffer(instance,0x0C);
+	ILI9341_addDataToBuffer(instance,0x0E);
+	ILI9341_addDataToBuffer(instance,0x08);
+	ILI9341_addDataToBuffer(instance,0x4E);
+	ILI9341_addDataToBuffer(instance,0xF1);
+	ILI9341_addDataToBuffer(instance,0x37);
+	ILI9341_addDataToBuffer(instance,0x07);
+	ILI9341_addDataToBuffer(instance,0x10);
+	ILI9341_addDataToBuffer(instance,0x03);
+	ILI9341_addDataToBuffer(instance,0x0E);
+	ILI9341_addDataToBuffer(instance,0x09);
+	ILI9341_addDataToBuffer(instance,0x00);
 
-//  ILI9341_writecommand(ILI9341_SLPOUT);    //Exit Sleep
-  ILI9341_writecommand(0x11);    //Exit Sleep
-  delay(120);
-  //ILI9341_writecommand(ILI9341_DISPON);    //Display on
-  ILI9341_writecommand(0x29);    //Display on
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_GMCTRN1);    //Set Gamma
+	ILI9341_addInstructionToBuffer(instance,0xE1);    //Set Gamma
+	ILI9341_addDataToBuffer(instance,0x00);
+	ILI9341_addDataToBuffer(instance,0x0E);
+	ILI9341_addDataToBuffer(instance,0x14);
+	ILI9341_addDataToBuffer(instance,0x03);
+	ILI9341_addDataToBuffer(instance,0x11);
+	ILI9341_addDataToBuffer(instance,0x07);
+	ILI9341_addDataToBuffer(instance,0x31);
+	ILI9341_addDataToBuffer(instance,0xC1);
+	ILI9341_addDataToBuffer(instance,0x48);
+	ILI9341_addDataToBuffer(instance,0x08);
+	ILI9341_addDataToBuffer(instance,0x0F);
+	ILI9341_addDataToBuffer(instance,0x0C);
+	ILI9341_addDataToBuffer(instance,0x31);
+	ILI9341_addDataToBuffer(instance,0x36);
+	ILI9341_addDataToBuffer(instance,0x0F);
+
+	//  ILI9341_addInstructionToBuffer(instance,ILI9341_SLPOUT);    //Exit Sleep
+	ILI9341_addInstructionToBuffer(instance,0x11);    //Exit Sleep
+	delay(120);
+	//ILI9341_addInstructionToBuffer(instance,ILI9341_DISPON);    //Display on
+	ILI9341_addInstructionToBuffer(instance,0x29);    //Display on
+
+	//ILI9341_CS_disable(instance);
+
+	return 0;
+
 }
 
 
-void ILI9341_setAddrWindow(int x0, int y0, int x1, int y1) { //ints used here were 16bit
+void ILI9341_setAddrWindow(ili9341_instance *instance, int x0, int y0, int x1, int y1) { //ints used here were 16bit
 
-  //ILI9341_writecommand(ILI9341_CASET); // Column addr set
-	ILI9341_writecommand(0x2A); // Column addr set
-  ILI9341_writedata(x0 >> 8);
-  ILI9341_writedata(x0 & 0xFF);     // XSTART
-  ILI9341_writedata(x1 >> 8);
-  ILI9341_writedata(x1 & 0xFF);     // XEND
 
-  //ILI9341_writecommand(ILI9341_PASET); // Row addr set
-  ILI9341_writecommand(0x2B); // Row addr set
-  ILI9341_writedata(y0>>8);
-  ILI9341_writedata(y0);     // YSTART
-  ILI9341_writedata(y1>>8);
-  ILI9341_writedata(y1);     // YEND
+	//ILI9341_CS_enable(instance);
 
-  //ILI9341_writecommand(ILI9341_RAMWR); // write to RAM
-  ILI9341_writecommand(0x2C); // write to RAM
+  //ILI9341_addInstructionToBuffer(instance,ILI9341_CASET); // Column addr set
+	ILI9341_addInstructionToBuffer(instance,0x2A); // Column addr set
+  ILI9341_addDataToBuffer(instance,x0 >> 8);
+  ILI9341_addDataToBuffer(instance,x0 & 0xFF);     // XSTART
+  ILI9341_addDataToBuffer(instance,x1 >> 8);
+  ILI9341_addDataToBuffer(instance,x1 & 0xFF);     // XEND
+
+  //ILI9341_addInstructionToBuffer(instance,ILI9341_PASET); // Row addr set
+  ILI9341_addInstructionToBuffer(instance,0x2B); // Row addr set
+  ILI9341_addDataToBuffer(instance,y0>>8);
+  ILI9341_addDataToBuffer(instance,y0);     // YSTART
+  ILI9341_addDataToBuffer(instance,y1>>8);
+  ILI9341_addDataToBuffer(instance,y1);     // YEND
+
+  //ILI9341_addInstructionToBuffer(instance,ILI9341_RAMWR); // write to RAM
+  ILI9341_addInstructionToBuffer(instance,0x2C); // write to RAM
+
+  //ILI9341_CS_disable(instance);
 }
 
 
@@ -429,23 +453,28 @@ void ILI9341_setAddrWindow(int x0, int y0, int x1, int y1) { //ints used here we
 //  //digitalWrite(_cs, HIGH);
 //}
 
-void ILI9341_drawPixel(int x, int y, int color) { //ints used here were 16bit
+void ILI9341_drawPixel(ili9341_instance *instance, int x, int y, int color) { //ints used here were 16bit
 
-  if((x < 0) ||(x >= ILI9341_LCD_WIDTH) || (y < 0) || (y >= ILI9341_LCD_HEIGHT)) return;
+	//ILI9341_CS_enable(instance);
 
-  ILI9341_setAddrWindow(x,y,x+1,y+1);
+
+  if((x < 0) ||(x >= ILI9341_LCD_WIDTH) || (y < 0) || (y >= ILI9341_LCD_HEIGHT)) return; //todo: get values from instance
+
+  ILI9341_setAddrWindow(instance, x,y,x+1,y+1);
 
   //digitalWrite(_dc, HIGH);
-  ILI9341_DC_enable();
+  //ILI9341_DC_enable();
   //digitalWrite(_cs, LOW);
-  ILI9341_CS_enable();
 
-  ILI9341_SPI_send(color >> 8); //l11uxx_spi_sendByte(1, color >> 8); //spiwrite(color >> 8);
-  ILI9341_SPI_send(color); //l11uxx_spi_sendByte(1, color); //spiwrite(color);
-
-  ILI9341_CS_disable();
+  ILI9341_CS_enable(instance);
+  ILI9341_addDataToBuffer(instance, color >> 8); //l11uxx_spi_sendByte(1, color >> 8); //spiwrite(color >> 8);
+  ILI9341_addDataToBuffer(instance, color); //l11uxx_spi_sendByte(1, color); //spiwrite(color);
+  ILI9341_CS_disable(instance);
   //digitalWrite(_cs, HIGH);
+
+  //ILI9341_CS_disable(instance);
 }
+/*
 
 
 
@@ -457,57 +486,56 @@ void ILI9341_drawPixel(int x, int y, int color) { //ints used here were 16bit
 
 
 
-
-void ILI9341_drawFastVLine(int x, int y, int h, int color) { //ints used here were 16bit
+void ILI9341_drawFastVLine(ili9341_instance *instance, int x, int y, int h, int color) { //ints used here were 16bit
 
   // Rudimentary clipping
-  if((x >= ILI9341_LCD_WIDTH) || (y >= ILI9341_LCD_HEIGHT)) return;
+  if((x >= ILI9341_LCD_WIDTH) || (y >= ILI9341_LCD_HEIGHT)) return; //todo: get values from instance
 
   if((y+h-1) >= ILI9341_LCD_HEIGHT)
     h = ILI9341_LCD_WIDTH-y;
 
-  ILI9341_setAddrWindow(x, y, x, y+h-1);
+  ILI9341_setAddrWindow(instance, x, y, x, y+h-1);
 
   char hi = color >> 8, lo = color;
 
-  ILI9341_DC_enable();
+  ILI9341_DC_enable(instance);
   //digitalWrite(_dc, HIGH);
-  ILI9341_CS_enable();
+  ILI9341_CS_enable(instance);
   //digitalWrite(_cs, LOW);
 
   while (h--) {
 	  ILI9341_SPI_send(hi); //spiwrite(hi);
 	  ILI9341_SPI_send(lo); //spiwrite(lo);
   }
-  ILI9341_CS_disable();
+  ILI9341_CS_disable(instance);
   //digitalWrite(_cs, HIGH);
 }
 
 
-void ILI9341_drawFastHLine(int x, int y, int w, int color) { //ints used here were 16bit
+void ILI9341_drawFastHLine(ili9341_instance *instance, int x, int y, int w, int color) { //ints used here were 16bit
 
   // Rudimentary clipping
   if((x >= ILI9341_LCD_WIDTH) || (y >= ILI9341_LCD_HEIGHT)) return;
   if((x+w-1) >= ILI9341_LCD_WIDTH)  w = ILI9341_LCD_WIDTH-x;
-  ILI9341_setAddrWindow(x, y, x+w-1, y);
+  ILI9341_setAddrWindow(instance, x, y, x+w-1, y);
 
   char hi = color >> 8, lo = color;
-  ILI9341_DC_enable();
-  ILI9341_CS_enable();
+  ILI9341_DC_enable(instance);
+  ILI9341_CS_enable(instance);
   //digitalWrite(_dc, HIGH);
   //digitalWrite(_cs, LOW);
   while (w--) {
 	  ILI9341_SPI_send(hi); //spiwrite(hi);
 	  ILI9341_SPI_send(lo); //spiwrite(lo);
   }
-  ILI9341_CS_disable();
+  ILI9341_CS_disable(instance);
   //digitalWrite(_cs, HIGH);
 }
 
 
 
 // fill a rectangle
-void ILI9341_fillRect(int x, int y, int w, int h, int color) { //ints used here were 16bit
+void ILI9341_fillRect(ili9341_instance *instance, int x, int y, int w, int h, int color) { //ints used here were 16bit
 
   // rudimentary clipping (drawChar w/big text requires this)
   if((x >= ILI9341_LCD_WIDTH) || (y >= ILI9341_LCD_HEIGHT)) return;
@@ -533,50 +561,17 @@ void ILI9341_fillRect(int x, int y, int w, int h, int color) { //ints used here 
   ILI9341_CS_disable();
 }
 
-void ILI9341_fillScreen(int color) { //ints used here were 16bit
+void ILI9341_fillScreen(ili9341_instance *instance, int color) { //ints used here were 16bit
 	ILI9341_fillRect(0, 0,  ILI9341_LCD_WIDTH, ILI9341_LCD_HEIGHT, color);
 }
 
 
 
 // Pass 8-bit (each) R,G,B, get back 16-bit packed color
-int ILI9341_Color565(char r, char g, char b) { //ints used here were 16bit
+int ILI9341_Color565(ili9341_instance *instance, char r, char g, char b) { //ints used here were 16bit
   return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}
-/*
-
-void Adafruit_ILI9340::setRotation(uint8_t m) {
-
-  writecommand(ILI9340_MADCTL);
-  rotation = m % 4; // can't be higher than 3
-  switch (rotation) {
-   case 0:
-     writedata(ILI9340_MADCTL_MX | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTWIDTH;
-     _height = ILI9340_TFTHEIGHT;
-     break;
-   case 1:
-     writedata(ILI9340_MADCTL_MV | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTHEIGHT;
-     _height = ILI9340_TFTWIDTH;
-     break;
-  case 2:
-    writedata(ILI9340_MADCTL_MY | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTWIDTH;
-     _height = ILI9340_TFTHEIGHT;
-    break;
-   case 3:
-     writedata(ILI9340_MADCTL_MV | ILI9340_MADCTL_MY | ILI9340_MADCTL_MX | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTHEIGHT;
-     _height = ILI9340_TFTWIDTH;
-     break;
-  }
-}
-
-
-void Adafruit_ILI9340::invertDisplay(boolean i) {
-  writecommand(i ? ILI9340_INVON : ILI9340_INVOFF);
 }*/
+
 
 
 
@@ -590,15 +585,16 @@ http://yellow5.com/pokey FOR MORE INFO!!!
 MAYBE IT WORKS NOW!!!!!
 
 */
+/*
 const unsigned int yellow = 0xFF00;//colormix(255, 255, 0);
-/*if doesn't work,try other color*/
-/*looked it up in a MSX manual,straight outta 1987!!!*/
+//if doesn't work,try other color
+//looked it up in a MSX manual,straight outta 1987!!!
 const unsigned int black = 0x00;
 const unsigned int white = 65535;
-void drawPokey(unsigned int x, unsigned int y)
+void drawPokey(ili9341_instance *instance, unsigned int x, unsigned int y)
 {
-	ILI9341_fillRect(x, y, 36 ,50 , white); /*make area white i hope*/
-  /*let's draw Pokey now!!!*/
+	ILI9341_fillRect(x, y, 36 ,50 , white); //make area white i hope
+  //let's draw Pokey now!!!
   ILI9341_drawFastVLine(x, y+15, 8, black);
   ILI9341_drawFastVLine(x+1, y+13, 17, black);
   ILI9341_drawFastVLine(x+2, y+11, 24, black);
@@ -610,9 +606,9 @@ void drawPokey(unsigned int x, unsigned int y)
   ILI9341_drawFastVLine(x+8, y+6, 41, black);
   ILI9341_drawFastVLine(x+9, y+5, 43, black);
   ILI9341_drawFastVLine(x+10, y+3, 45, black);
-  ILI9341_drawFastVLine(x+11, y+2, 45, black); /*black back part ends,time to fuck around with whites and shit*/
-  ILI9341_drawFastVLine(x+12, y+2, 45, black); /*black stripe*/
-  ILI9341_drawFastVLine(x+12, y+25, 3, white); /*3 pixels white near wing*/
+  ILI9341_drawFastVLine(x+11, y+2, 45, black); //black back part ends,time to fuck around with whites and shit
+  ILI9341_drawFastVLine(x+12, y+2, 45, black); //black stripe
+  ILI9341_drawFastVLine(x+12, y+25, 3, white); //3 pixels white near wing
   ILI9341_drawFastVLine(x+13, y+1, 46, black);
   ILI9341_drawFastVLine(x+13, y+29, 8, white);
   ILI9341_drawFastVLine(x+14, y+1, 47, black);
@@ -628,10 +624,10 @@ void drawPokey(unsigned int x, unsigned int y)
   ILI9341_drawFastVLine(x+18, y+19, 25, white);
   ILI9341_drawFastVLine(x+18, y+44, 1, white);
   ILI9341_drawFastVLine(x+19, y, 48, black);
-  ILI9341_drawFastVLine(x+19, y+7, 3, white); /*1st part of eye*/
+  ILI9341_drawFastVLine(x+19, y+7, 3, white); //1st part of eye
   ILI9341_drawFastVLine(x+19, y+18, 27, white);
   ILI9341_drawFastVLine(x+20, y, 48, black);
-  ILI9341_drawFastVLine(x+20, y+7, 4, white); /*2nd part of eye*/
+  ILI9341_drawFastVLine(x+20, y+7, 4, white); //2nd part of eye
   ILI9341_drawFastVLine(x+20, y+17, 29, white);
   ILI9341_drawFastVLine(x+21, y, 48, black);
   ILI9341_drawFastVLine(x+21, y+14, 31, white);
@@ -662,7 +658,7 @@ void drawPokey(unsigned int x, unsigned int y)
   ILI9341_drawFastVLine(x+30, y+19, 2, black);
   ILI9341_drawFastVLine(x+30, y+36, 4, black);
   ILI9341_drawFastVLine(x+31, y+21, 14, black);
-  /*let's draw a beak!!!*/
+  //let's draw a beak!!!
   ILI9341_drawFastHLine(x+27, y+11, 3, black);
   ILI9341_drawFastHLine(x+26, y+12, 6, yellow);
   ILI9341_drawFastHLine(x+32, y+12, 2, black);
@@ -673,9 +669,9 @@ void drawPokey(unsigned int x, unsigned int y)
   ILI9341_drawFastHLine(x+26, y+17, 3, black);
   ILI9341_drawFastHLine(x+30, y+16, 4, black);
   ILI9341_drawFastVLine(x+34, y+13, 3, black);
-  /*pokey done!!!*/
+  //pokey done!!!
 }
-
+*/
 
 const unsigned char ILI9341_LCDBitmapFont[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00,
@@ -936,7 +932,8 @@ const unsigned char ILI9341_LCDBitmapFont[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00  // #255 NBSP
 };
 
-void ILI9341_printString_bg(int x, int y, int textColour, int bgColour, char text[100]){ //
+/*
+void ILI9341_printString_bg(ili9341_instance *instance, int x, int y, int textColour, int bgColour, char text[100]){ //
 	//Y coordinate is top left corner of text
 	//40 chars * 40 chars (sic!) max
 	int characterNumber=0;
@@ -990,3 +987,128 @@ void ILI9341_printString_bg(int x, int y, int textColour, int bgColour, char tex
 	}
 	return;
 }
+*/
+
+bool ILI9341_init(ili9341_instance *instance, uint8_t *width, uint8_t *height){
+
+	bool response = 0;
+
+	instance->LCDCommandBufferIndex = 0;
+	instance->LCDCommandsInBuffer = 0;
+	instance->LCDCommandBufferSize = ILI9341_TX_BUFFER_SIZE;
+	instance->xResolution = width;
+	instance->yResolution = height;
+
+	response |= ILI9341_CS_disable(instance);
+
+	response |= ILI9341_begin(instance); //this should initialize something. To be broken down later into multiple commands
+
+	return response;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//rudimentary crap here:
+
+/*
+
+void ILI9341_addDataToBuffer(instance,ili9341_instance *instance, char c) {
+	ILI9341_DC_enable(); //dc disable sets high voltage wise, meaning data
+  //digitalWrite(_dc, HIGH);
+  //CLEAR_BIT(clkport, clkpinmask);
+  //digitalWrite(_sclk, LOW);
+  ILI9341_CS_enable();
+  //digitalWrite(_cs, LOW);
+
+  //spiwrite(c);
+  ILI9341_SPI_send(c);
+
+  //digitalWrite(_cs, HIGH);
+  ILI9341_CS_disable();
+}*/
+
+// Rather than a bazillion writecommand() and writedata() calls, screen
+// initialization commands and arguments are organized in these tables
+// stored in PROGMEM.  The table may look bulky, but that's mostly the
+// formatting -- storage-wise this is hundreds of bytes more compact
+// than the equivalent code.  Companion function follows.
+//#define DELAY 0x80
+
+// Companion code to the above tables.  Reads and issues
+// a series of LCD commands stored in PROGMEM byte array.
+//void Adafruit_ILI9340::commandList(uint8_t *addr) {
+//
+//  uint8_t  numCommands, numArgs;
+//  uint16_t ms;
+//
+//  numCommands = pgm_read_byte(addr++);   // Number of commands to follow
+//  while(numCommands--) {                 // For each command...
+//    writecommand(pgm_read_byte(addr++)); //   Read, issue command
+//    numArgs  = pgm_read_byte(addr++);    //   Number of args to follow
+//    ms       = numArgs & DELAY;          //   If hibit set, delay follows args
+//    numArgs &= ~DELAY;                   //   Mask out delay bit
+//    while(numArgs--) {                   //   For each argument...
+//      writedata(pgm_read_byte(addr++));  //     Read, issue argument
+//    }
+//
+//    if(ms) {
+//      ms = pgm_read_byte(addr++); // Read post-command delay time (ms)
+//      if(ms == 255) ms = 500;     // If 255, delay for 500 ms
+//      delay(ms);
+//    }
+//  }
+//}
+
+
+
+/*
+
+void Adafruit_ILI9340::setRotation(uint8_t m) {
+
+  writecommand(ILI9340_MADCTL);
+  rotation = m % 4; // can't be higher than 3
+  switch (rotation) {
+   case 0:
+     writedata(ILI9340_MADCTL_MX | ILI9340_MADCTL_BGR);
+     _width  = ILI9340_TFTWIDTH;
+     _height = ILI9340_TFTHEIGHT;
+     break;
+   case 1:
+     writedata(ILI9340_MADCTL_MV | ILI9340_MADCTL_BGR);
+     _width  = ILI9340_TFTHEIGHT;
+     _height = ILI9340_TFTWIDTH;
+     break;
+  case 2:
+    writedata(ILI9340_MADCTL_MY | ILI9340_MADCTL_BGR);
+     _width  = ILI9340_TFTWIDTH;
+     _height = ILI9340_TFTHEIGHT;
+    break;
+   case 3:
+     writedata(ILI9340_MADCTL_MV | ILI9340_MADCTL_MY | ILI9340_MADCTL_MX | ILI9340_MADCTL_BGR);
+     _width  = ILI9340_TFTHEIGHT;
+     _height = ILI9340_TFTWIDTH;
+     break;
+  }
+}
+
+
+void Adafruit_ILI9340::invertDisplay(boolean i) {
+  writecommand(i ? ILI9340_INVON : ILI9340_INVOFF);
+}*/

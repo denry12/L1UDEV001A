@@ -16,6 +16,10 @@
 #endif
 
 #include <stdlib.h>
+#include "esp8266.h"
+#include "hd44780.h"
+
+#include "JDP_wifi_creds.h"
 
 void HW_test_debugmessage(char text[]){
 	//comment this out if you do not want to
@@ -505,4 +509,141 @@ void HW_test_uartToSPIconverter(int SPInumber){
 
 	return; //never returns
 
+}
+
+void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_instance *i2cLCD01dn){ //uses two line LCD, all commands up to (including) init should be done before this
+	int lcdcursortempY=0;
+	int lcdcursortempX=0;
+	volatile char temporaryString1[300], temporaryString2[40];
+	char *ptrForStrstr=0;
+	int i=0, j=0;
+
+	hd44780_clear(&i2cLCD01dn);
+	hd44780_clear(&i2cLCD01up);
+	hd44780_printtext(&i2cLCD01up, "INIT 1...");
+	hd44780_printtext(&i2cLCD01dn, "INIT 2...");
+	hd44780_lcdcursor(&i2cLCD01dn, 20, 1);
+	hd44780_printtext(&i2cLCD01dn, "Second line");
+
+
+	hd44780_disp_cursor(&i2cLCD01up, 1, 0, 0); //remove cursor
+	hd44780_disp_cursor(&i2cLCD01dn, 1, 0, 0); //remove cursor
+	hd44780_clear(&i2cLCD01up);
+	hd44780_clear(&i2cLCD01dn);
+	hd44780_lcdcursor(&i2cLCD01up, 15, 0);
+	hd44780_printtext(&i2cLCD01up, "Connecting");
+	hd44780_lcdcursor(&i2cLCD01up, 19, 1);
+	hd44780_printtext(&i2cLCD01up, "to");
+	hd44780_lcdcursor(&i2cLCD01dn, 20-(strlen(WIFI_SSID)/2), 0);
+	hd44780_printtext(&i2cLCD01dn, WIFI_SSID);
+	hd44780_lcdcursor(&i2cLCD01dn, 20-(strlen(WIFI_PASSWD)/2), 1);
+	hd44780_printtext(&i2cLCD01dn, WIFI_PASSWD);
+
+	printSmallPercent(&i2cLCD01dn, 0);
+
+	//l11uxx_uart_pinSetup(47, 46); //set up to CH340
+	l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
+	l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
+
+
+	//check baud for esp8266
+	printSmallPercent(&i2cLCD01dn, 0*100/9);
+	l11uxx_uart_init(9600);
+	debugOutput("9600?\n\r");
+	if(esp8266_isAlive(&esp01) == 0){
+		//no response, trying smth else
+		l11uxx_uart_init(115200);
+		debugOutput("115200?\n\r");
+		if(esp8266_isAlive(&esp01) == 0){
+			//no response, trying smth else
+
+			l11uxx_uart_init(19200);
+			debugOutput("19200?\n\r");
+
+			if(esp8266_isAlive(&esp01) == 0) debugOutput("ESP comm fail!\n\r");; //idk, massive fail
+		}
+	}
+	printSmallPercent(&i2cLCD01dn, 1*100/9);
+
+	esp8266_isAlive(&esp01);
+	printSmallPercent(&i2cLCD01dn, 2*100/9);
+
+	esp8266_setUARTMode(&esp01, 9600, 8, 3, 0, 0);
+	printSmallPercent(&i2cLCD01dn, 3*100/9);
+	l11uxx_uart_init(9600);
+	printSmallPercent(&i2cLCD01dn, 4*100/9);
+	esp8266_isAlive(&esp01);
+	printSmallPercent(&i2cLCD01dn, 5*100/9);
+
+	esp8266_setMode(&esp01, 1);
+	printSmallPercent(&i2cLCD01dn, 6*100/9);
+	esp8266_setCipmux(&esp01, 1); //multiple connections, yay
+	printSmallPercent(&i2cLCD01dn, 7*100/9);
+
+
+	while( esp8266_joinAP(&esp01, WIFI_SSID, WIFI_PASSWD) != 0) bitbangUARTmessage("Trying wificonnect again\n\r");;
+
+	printSmallPercent(&i2cLCD01dn, 8*100/9);
+
+	bitbangUARThex(temporaryString1,3,8);
+	bitbangUARTmessage("Cipstatus response request\n\r");
+	esp8266_sendCommandAndReadResponse(&esp01, "AT+CIPSTATUS", temporaryString1); //this line gets response nicely to string
+	bitbangUARTmessage("Cipstatus response occurred\n\r");
+	bitbangUARThex(temporaryString1,3,8);
+	bitbangUARTmessage(temporaryString1);
+
+	printSmallPercent(&i2cLCD01dn, 9*100/9);
+	esp8266_getOwnIP(&esp01, temporaryString1);
+	bitbangUARTmessage(temporaryString1);
+
+	hd44780_clear(&i2cLCD01up);
+	hd44780_clear(&i2cLCD01dn);
+	hd44780_lcdcursor(&i2cLCD01up, 18, 1);
+	hd44780_printtext(&i2cLCD01up, "IP:");
+	hd44780_lcdcursor(&i2cLCD01dn, 8, 0);
+	hd44780_printtext(&i2cLCD01dn, temporaryString1);
+	hd44780_printtext(&i2cLCD01dn, ":6666");
+
+	esp8266_openConnection(&esp01, 0, "UDP", "192.168.173.1", 6666);
+
+
+	//"UI" starts here
+
+	while(1){
+		//get packet and handle LCD accordingly
+		while(esp01->rxPacketCount < 1)esp8266_receiveHandler(&esp01); //wait until some data is get
+		//esp8266_sendData(&esp01, 0, 10, "PACKET GET");
+		esp8266_getData(&esp01, temporaryString1, &i, &j);
+		bitbangUARTmessage(temporaryString1);
+		ptrForStrstr = 0;
+		ptrForStrstr = strstr(temporaryString1, "LCDCLR");
+		if(ptrForStrstr){
+			//packet contains LCD clear request
+			hd44780_clear(&i2cLCD01up);
+			hd44780_clear(&i2cLCD01dn);
+		}
+		ptrForStrstr = 0;
+		ptrForStrstr = strstr(temporaryString1, "LCDCRS:");
+		if(ptrForStrstr){
+			//packet contains LCD cursor location, e.g. "LCDCRS:01,03";
+			strcpy(temporaryString2, ptrForStrstr+7);
+			lcdcursortempX = atoi(temporaryString2);
+			strcpy(temporaryString2, ptrForStrstr+7+3);
+			lcdcursortempY = atoi(temporaryString2);
+			//lcdcursortempY =
+			if(lcdcursortempY<=1) hd44780_lcdcursor(&i2cLCD01up, lcdcursortempX, lcdcursortempY);
+			else hd44780_lcdcursor(&i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2));
+		}
+		ptrForStrstr = 0;
+		ptrForStrstr = strstr(temporaryString1, "LCDTXT:");
+		if(ptrForStrstr){
+			//packet contains LCD text data
+			if (lcdcursortempY <= 1) hd44780_printtext(&i2cLCD01up, (ptrForStrstr+7));
+			else hd44780_printtext(&i2cLCD01dn, (ptrForStrstr+7));
+		}
+	}
+
+
+	//never returns
+	return;
 }

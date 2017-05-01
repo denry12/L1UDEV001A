@@ -30,6 +30,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "esp8266.h"
+#include "hd44780.h"
 #include "bitbangUART.h"
 
 #ifndef uint8_t

@@ -22,11 +22,11 @@
 #include "esp8266.h"
 #include "bitbangUART.h"
 #include "hd44780.h"
-
+#include "ILI9341.h"
 
 //hwtests
 
-//#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 //#include "le_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
 #define WIFI_SSID "4A50DD"
@@ -333,7 +333,7 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 
 
 	while(dataInvalid == 0){
-		dataInvalid = hd44780_getFromTxBuffer(instance, &LCDMSN, &LCDRS, &LCDRW, &LCDE);
+
 		//got a packet to send
 		l11uxx_i2c_sendStart();
 		LCDdatabyte = 0;
@@ -360,6 +360,7 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 		l11uxx_i2c_sendByte(LCDdatabyte);
 		l11uxx_i2c_sendStop();
 		//delay(1);
+		dataInvalid = hd44780_getFromTxBuffer(instance, &LCDMSN, &LCDRS, &LCDRW, &LCDE); //this was at top of while loop but it seemed illogical. How did it even work.
 	}
 
 	return dataInvalid; //if 0, all cool
@@ -381,7 +382,33 @@ bool printSmallPercent(hd44780_instance *instance, uint8_t percentValue){
 	return 0;
 }
 
+bool ili9341_handler(ili9341_instance *instance){
+	uint8_t LCDdata, LCDDC, LCDCSchange;
+
+	bool dataInvalid = 1;
+
+	dataInvalid = ILI9341_getFromTxBuffer(instance, &LCDdata, &LCDDC, &LCDCSchange);
+
+	while(dataInvalid == 0){
+		//got a packet to send
+		if(LCDCSchange){
+			GPIOSetValue(1, 29, ((~LCDdata) & 0x01));
+		} else {
+			GPIOSetValue(1, 31, (LCDDC & 0x01));
+			l11uxx_spi_sendByte(1, LCDdata);
+		}
+		//delay(1);
+		dataInvalid = ILI9341_getFromTxBuffer(instance, &LCDdata, &LCDDC, &LCDCSchange);
+	}
+
+	return dataInvalid; //if 0, all cool
+}
+
 int main(void) {
+
+
+	int i=0, j=0;
+	int debug=0;
 
 	//printf("Hello, this is app.");
  	GPIOSetDir(0, 2, 0); //set input
@@ -397,7 +424,7 @@ int main(void) {
 
 
 	setupClocks();
-	setup48MHzInternalClock(); //gotta go fast
+	//setup48MHzInternalClock(); //gotta go fast
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
@@ -410,6 +437,65 @@ int main(void) {
 	l11uxx_uart_pinSetup(47, 46); //set up to CH340 //careful, esp is set afterwards
 	l11uxx_uart_init(9600); //upping speed later mby
 
+
+
+
+
+	//here starts hustle with ili9341
+
+	GPIOSetDir(1, 27, 1); //BL as output
+	GPIOSetDir(1, 28, 1); //reset as output
+	GPIOSetDir(1, 29, 1); //CS as output
+	GPIOSetDir(1, 31, 1); //D/C as output
+	GPIOSetValue(1, 27, 1); //BL on (note that it is '1' cause direct-bypass bugfix)
+	delay(10);
+	GPIOSetValue(1, 28, 0); //do reset just in case
+	delay(300);
+	GPIOSetValue(1, 28, 1); //wake from reset
+	delay(300);
+
+	ili9341_instance iliLCD01;
+	iliLCD01.handlerFunction = &ili9341_handler;
+	//ILI9341_CS_enable(&iliLCD01);
+	//ILI9341_buffertester(&iliLCD01);
+
+
+
+
+	ILI9341_init(&iliLCD01, 240, 320);
+
+	ILI9341_drawPixel(&iliLCD01, 10, 10, 0xFFFF);
+	ILI9341_drawPixel(&iliLCD01, 11, 10, 0xFFFF);
+	ILI9341_drawPixel(&iliLCD01, 10, 11, 0xFFFF);
+	ILI9341_drawPixel(&iliLCD01, 11, 11, 0xFFFF);
+
+	ILI9341_drawPixel(&iliLCD01, 20, 10, 0xF00F);
+	ILI9341_drawPixel(&iliLCD01, 21, 10, 0xF00F);
+	ILI9341_drawPixel(&iliLCD01, 20, 11, 0xF00F);
+	ILI9341_drawPixel(&iliLCD01, 21, 11, 0xF00F);
+
+
+	i=0;
+		while(i<50){
+			while(j<41){
+				//ILI9341_drawPixel(j+22, i+10, 0xFFFF);
+				ILI9341_drawPixel(&iliLCD01, j+22, i+10, 0xFFFF);
+				j++;
+				ili9341_handler(&iliLCD01);
+			}
+			i++;
+			j=0;
+		}
+
+
+
+
+
+	//iliLCD01.handlerFunction(); //this is broken, do not use
+	ili9341_handler(&iliLCD01);
+	while(1); //I don't wanna continue
+
+
 	esp8266_instance esp01;
 	esp01.getCharFromESP = &esp8266_ESPToLPC;
 	esp01.sendCharToESP = &esp8266_LPCToESP;
@@ -418,11 +504,8 @@ int main(void) {
 	bitbangUARThex(&esp01,0,0);
 	bitbangUARTmessage("\r\n");
 
-	int i=0, j=0;
-	int debug=0;
-	char *ptrForStrstr=0;
-	int lcdcursortempY=0;
-	int lcdcursortempX=0;
+
+
 
 	volatile char temporaryString1[300], temporaryString2[40];
 
@@ -432,168 +515,34 @@ int main(void) {
 	hd44780_instance i2cLCD01up;
 	hd44780_instance i2cLCD01dn;
 
+	i2cLCD01up.handlerFunction = &hd44780lcd_handler;
+	i2cLCD01dn.handlerFunction = &hd44780lcd_handler;
 
 	i2cLCD01up.I2C_addr = (uint8_t)(0x27);
-	i2cLCD01up.handlerFunction = &hd44780lcd_handler;
 	hd44780_init(&i2cLCD01up, 40, 2, 0);
 	//i2cLCD01dn.I2C_pinE_offset = (uint8_t)(2); //this should not be necessary but I am desperate
 
 
 	i2cLCD01dn.I2C_addr = (uint8_t)(0x27);
-	i2cLCD01dn.handlerFunction = &hd44780lcd_handler;
 	hd44780_init(&i2cLCD01dn, 40, 2, 0);
 	i2cLCD01dn.I2C_pinE_offset = (uint8_t)(3); //cause using BL pin as E
-
-
-
-
-
 
 	hd44780lcd_handler(&i2cLCD01up);
 	hd44780lcd_handler(&i2cLCD01dn);
 
 
-	hd44780_clear(&i2cLCD01dn);
-	hd44780_clear(&i2cLCD01up);
+	//HWTestmigrate starts here
+	int lcdcursortempY=0;
+	int lcdcursortempX=0;
+	char *ptrForStrstr=0;
 
+	espToLCD(&esp01, &i2cLCD01up, &i2cLCD01dn); //does not return
 
-	//hd44780lcd_handler(&i2cLCD01up);
-	//hd44780lcd_handler(&i2cLCD01dn);
-	hd44780_printtext(&i2cLCD01up, "INIT 1...");
-	hd44780_printtext(&i2cLCD01dn, "INIT 2...");
-	//hd44780lcd_handler(&i2cLCD01up);
-	//hd44780lcd_handler(&i2cLCD01dn);
-	hd44780_lcdcursor(&i2cLCD01dn, 20, 1);
-	//hd44780_printtext(&i2cLCD01up, "hy");
-	//hd44780_printtext(&i2cLCD01dn, "xy");
-	//hd44780_printtext(&i2cLCD01dn, "1234567890123456789");
-	hd44780_printtext(&i2cLCD01dn, "Second line");
-
-
-	hd44780_disp_cursor(&i2cLCD01up, 1, 0, 0); //remove cursor
-	hd44780_disp_cursor(&i2cLCD01dn, 1, 0, 0); //remove cursor
-	hd44780_clear(&i2cLCD01up);
-	hd44780_clear(&i2cLCD01dn);
-	hd44780_lcdcursor(&i2cLCD01up, 15, 0);
-	hd44780_printtext(&i2cLCD01up, "Connecting");
-	hd44780_lcdcursor(&i2cLCD01up, 19, 1);
-	hd44780_printtext(&i2cLCD01up, "to");
-	hd44780_lcdcursor(&i2cLCD01dn, 20-(strlen(WIFI_SSID)/2), 0);
-	hd44780_printtext(&i2cLCD01dn, WIFI_SSID);
-	hd44780_lcdcursor(&i2cLCD01dn, 20-(strlen(WIFI_PASSWD)/2), 1);
-	hd44780_printtext(&i2cLCD01dn, WIFI_PASSWD);
-
-	printSmallPercent(&i2cLCD01dn, 0);
-	//printSmallPercent(&i2cLCD01dn, 50);
-	//printSmallPercent(&i2cLCD01dn, 99);
-	//printSmallPercent(&i2cLCD01dn, 100);
-
-	//while(1){
-
-		//hd44780lcd_handler(&i2cLCD01up);
-		//hd44780lcd_handler(&i2cLCD01dn);
-
-
-		/*
-		while(hd44780_getFromTxBuffer(&i2cLCD01up, &LCDMSN, &LCDRS, &LCDRW, &LCDE) == 0){
-			//got a packet to send
-			l11uxx_i2c_sendStart();
-			LCDdatabyte = 0;
-			l11uxx_i2c_sendAddr(i2cLCD01up.I2C_addr, 0);
-
-			//l11uxx_i2c_sendStop();
-
-			//bitbangUARTmessage("E: ");
-			//bitbangUARThex(((uint8_t)(LCDE)),0,0);
-			if (LCDE){
-			bitbangUARTmessage("; RS: ");
-			bitbangUARThex(((uint8_t)(LCDRS)),0,0);
-			bitbangUARTmessage("; frombuffer: ");
-			bitbangUARTbin(((uint8_t)(LCDMSN)),0,8);
-			bitbangUARTmessage("\r\n");
-			}
-
-
-
-			LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
-			LCDdatabyte |= ((LCDE   & 0x01) << 2);
-			LCDdatabyte |= ((LCDRW  & 0x01) << 1);
-			LCDdatabyte |= ((LCDRS  & 0x01) << 0);
-			l11uxx_i2c_sendByte(LCDdatabyte);
-			l11uxx_i2c_sendStop();
-		}
-
-
-		//problem with second one: it hustles with E pin. Empty out buffer for one first, then do the second
-		while(hd44780_getFromTxBuffer(&i2cLCD01dn, &LCDMSN, &LCDRS, &LCDRW, &LCDE) == 0){
-					//got a packet to send
-					l11uxx_i2c_sendStart();
-					LCDdatabyte = 0;
-					l11uxx_i2c_sendAddr(i2cLCD01dn.I2C_addr, 0);
-
-					//l11uxx_i2c_sendStop();
-
-					//bitbangUARTmessage("E: ");
-					//bitbangUARThex(((uint8_t)(LCDE)),0,0);
-					if (LCDE){
-					bitbangUARTmessage("; RS: ");
-					bitbangUARThex(((uint8_t)(LCDRS)),0,0);
-					bitbangUARTmessage("; frombuffer: ");
-					bitbangUARTbin(((uint8_t)(LCDMSN)),0,8);
-					bitbangUARTmessage("\r\n");
-					}
-
-
-
-					LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
-					LCDdatabyte |= ((LCDE   & 0x01) << 3);
-					LCDdatabyte |= ((LCDRW  & 0x01) << 1);
-					LCDdatabyte |= ((LCDRS  & 0x01) << 0);
-					l11uxx_i2c_sendByte(LCDdatabyte);
-					l11uxx_i2c_sendStop();
-		}
-		*/
-
-
-		//delay(1);
-
-	//esp01.getCharFromESP();
-	//esp01.sendCharToESP();
 
 	//HW_test_getFlashID();
 	//HW_test_uartToSPIconverter(1); //never returns (careful, it didn't find the function for some reason when I commented it out. Might need to create header
-
-
-
-
 	//HW_test_lowerpower(500);
 
-
-
-		//MAD DEBUGGERY FOR ESP8266
-		//OUTDATED
-		/*extern char *l11uxx_uart_rx_buffer;
-		volatile extern int l11uxx_uart_rx_buffer_current_index;
-		bitbangUARTmessage("\n\r------------------------------------------------\n\r");
-		bitbangUARTmessage("RxBSt: 0x");
-		itoa(&l11uxx_uart_rx_buffer, temporaryString1, 16);
-		bitbangUARTmessage(temporaryString1);
-		bitbangUARTmessage("; RxIn: 0x");
-		itoa(l11uxx_uart_rx_buffer_current_index, temporaryString1, 16);
-		bitbangUARTmessage(temporaryString1);
-		bitbangUARTmessage("; RxBEn: 0x");
-		itoa((&l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index), temporaryString1, 16);
-		bitbangUARTmessage(temporaryString1);
-		bitbangUARTmessage("\n\r");*/
-
-		//bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -\n\r");
-		//bitbangUARTmessage("  ");
-		//bitbangUARTint(65530, 3, 8);
-		//bitbangUARThex(65530, 3, 8);
-		//bitbangUARTbin(65530, 3, 32);
-		//bitbangUARTmessage("  ,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -,  -\n\r");
-
-	//l11uxx_uart_Send("!!!!!!!!!!!!!!!!!!!!!!!!!!\n\r");
 		lcd_5110_init();
 			delay(100);
 			lcd_5110_clear_framebuffer();
@@ -626,21 +575,6 @@ int main(void) {
 			esp8266_getData(&esp01, temporaryString1);
 			bitbangUARTmessage(temporaryString1);
 			debugOutput("\n\r");*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 			//check baud for esp8266
@@ -745,6 +679,13 @@ int main(void) {
 				else hd44780_printtext(&i2cLCD01dn, (ptrForStrstr+7));
 			}
 		}
+
+		//HWtestmigrate ends here
+
+
+
+
+
 		debugOutput("\n\r");
 		esp8266_getOwnMAC(&esp01, temporaryString1);
 		//delay(2000);
