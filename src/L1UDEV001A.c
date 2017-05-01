@@ -27,7 +27,7 @@
 //hwtests
 
 //#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
-#include "le_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+//#include "le_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
 #define WIFI_SSID "4A50DD"
 //#define WIFI_SSID "Test-asus"
