@@ -5,6 +5,7 @@
  *      Author: Denry
  */
 
+// https://cdn-shop.adafruit.com/datasheets/ILI9341.pdf
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -13,17 +14,59 @@
 int temporaryValue = 0;
 int randomcounter = 0;
 
+
+
+
+
+//this here is just to test speeding up SPI
+#ifdef __USE_CMSIS
+#include "LPC11Uxx.h"
+#endif
+
 bool ILI9341_addToTxBuffer(ili9341_instance *instance, uint16_t *command){
 
+	//best way to bypass buffer, very fast (whoosh)
+	//when speed needed, add a way to CSen/CSdis/addData/addInstr to bypass buffer and send directly to HW
+	/*
+	int commandlocal = ((int)(command))&0xFFF;
+	if (commandlocal & (1<<ILI9341_CSCHANGE_BIT_IN_BUFFER)){
+		while (LPC_SSP1->SR & (0x1 << 4)); //wait while SPI busy //ATTN, locks processor!
+		GPIOSetValue(1, 29, ((~commandlocal) & 0x01));
+		return 0;
+	}
+	if(commandlocal & (1<<ILI9341_DC_BIT_IN_BUFFER)) GPIOSetValue(1, 31, 1);
+	else GPIOSetValue(1, 31, 0);
+	l11uxx_spi_sendByte(1, commandlocal&0xFF);
+	return 0;
+	*/
 
-	/*int commandlocal = ((int)(command))&0xFFF;
+
+/*
+	int commandlocal = ((int)(command))&0xFFF;
+		if (commandlocal & (1<<ILI9341_CSCHANGE_BIT_IN_BUFFER)){
+			GPIOSetValue(1, 29, ((~commandlocal) & 0x01));
+			return 0;
+		}
+
+		if(commandlocal & (1<<ILI9341_DC_BIT_IN_BUFFER)) GPIOSetValue(1, 31, 1);
+		else GPIOSetValue(1, 31, 0);
+		l11uxx_spi_sendByte(1, commandlocal&0xFF);
+
+		return 0;
+
+*/
+
+/*
+	int commandlocal = ((int)(command))&0xFFF;
 	if (commandlocal & (1<<ILI9341_CSCHANGE_BIT_IN_BUFFER)) return 0;
 	GPIOSetValue(1, 29, 0);
 	if(commandlocal & (1<<ILI9341_DC_BIT_IN_BUFFER)) GPIOSetValue(1, 31, 1);
 	else GPIOSetValue(1, 31, 0);
 	l11uxx_spi_sendByte(1, commandlocal&0xFF);
 	GPIOSetValue(1, 29, 1);
-	return 0;*/
+	return 0;
+*/
+
 
 	if(instance->LCDCommandsInBuffer < (instance->LCDCommandBufferSize - 2)){ //verify that there is room (and to spare)
 		//if define = 20, then comminbuffer can be up to 18 (cause "17 < (20-2)" still enters loop)
@@ -254,7 +297,7 @@ bool ILI9341_setAddrWindow(ili9341_instance *instance, int x0, int y0, int x1, i
 	return 0;
 }
 
-bool ILI9341_drawPixel(ili9341_instance *instance, int x, int y, int color) { //ints used here were 16bit
+bool ILI9341_drawPixel(ili9341_instance *instance, int x, int y, uint16_t color) { //ints used here were 16bit
 
 	// if((x < 0) ||(x >= instance->xResolution) || (y < 0) || (y >= instance->yResolution)) return 1; //this is checked in setAddrWindow
 
@@ -267,7 +310,7 @@ bool ILI9341_drawPixel(ili9341_instance *instance, int x, int y, int color) { //
 	return 0;
 }
 
-void ILI9341_drawFastVLine(ili9341_instance *instance, int x, int y, int h, int color) { //ints used here were 16bit
+void ILI9341_drawFastVLine(ili9341_instance *instance, int x, int y, int h, uint16_t color) { //ints used here were 16bit
 
 	// Rudimentary clipping
 	// if((x < 0) ||(x >= instance->xResolution) || (y < 0) || (y >= instance->yResolution)) return 1; //this is checked in setAddrWindow
@@ -277,7 +320,7 @@ void ILI9341_drawFastVLine(ili9341_instance *instance, int x, int y, int h, int 
 
 	ILI9341_setAddrWindow(instance, x, y, x, y+h-1);
 
-	char hi = color >> 8, lo = color;
+	uint8_t colourMSB = color >> 8, colourLSB = color;
 
 	//ILI9341_DC_enable(instance);
 	//digitalWrite(_dc, HIGH);
@@ -285,15 +328,15 @@ void ILI9341_drawFastVLine(ili9341_instance *instance, int x, int y, int h, int 
 	//digitalWrite(_cs, LOW);
 
 	while (h--) {
-		ILI9341_addDataToBuffer(instance, hi); //spiwrite(hi);
-		ILI9341_addDataToBuffer(instance, lo); //spiwrite(lo);
+		ILI9341_addDataToBuffer(instance, colourMSB);
+		ILI9341_addDataToBuffer(instance, colourLSB);
 	}
 	ILI9341_CS_disable(instance);
 	//digitalWrite(_cs, HIGH);
 }
 
 
-bool ILI9341_drawFastHLine(ili9341_instance *instance, int x, int y, int w, int color) { //ints used here were 16bit
+bool ILI9341_drawFastHLine(ili9341_instance *instance, int x, int y, int w, uint16_t color) { //ints used here were 16bit
 
 	// Rudimentary clipping
 	// if((x >= instance->xResolution) || (y >= instance->yResolution)) return; //this is checked in setAddrWindow
@@ -314,7 +357,7 @@ bool ILI9341_drawFastHLine(ili9341_instance *instance, int x, int y, int w, int 
 
 
 // fill a rectangle
-bool ILI9341_fillRect(ili9341_instance *instance, int x, int y, int w, int h, int color) { //ints used here were 16bit
+bool ILI9341_fillRect(ili9341_instance *instance, int x, int y, int w, int h, uint16_t color) { //ints used here were 16bit
 
 	// rudimentary clipping (drawChar w/big text requires this)
 	//if((x >= ILI9341_LCD_WIDTH) || (y >= ILI9341_LCD_HEIGHT)) return; //this is checked in setAddrWindow
@@ -754,6 +797,65 @@ void ILI9341_printString_bg(ili9341_instance *instance, int x, int y, int textCo
 	return;
 }
 
+bool ILI9341_invert(ili9341_instance *instance, bool inversion){
+	bool response = 0;
+
+	response |= ILI9341_CS_enable(instance);
+
+	if (inversion) response |= ILI9341_addInstructionToBuffer(instance,0x21);
+	else response |= ILI9341_addInstructionToBuffer(instance,0x20);
+
+	response |= ILI9341_CS_disable(instance);
+	return 0;
+}
+
+
+//might need also command "write ctrl display", 0x53
+//^ without this definitely doesn't work. Not sure if this helps
+//
+//CONSIDER THIS FUNCTION BROKEN
+bool ILI9341_setBrightness(ili9341_instance *instance, uint8_t brightness){
+	bool response = 0;
+
+	response |= ILI9341_CS_enable(instance);
+
+	response |= ILI9341_addInstructionToBuffer(instance, 0x51);
+	response |= ILI9341_addDataToBuffer(instance, brightness);
+
+	response |= ILI9341_CS_disable(instance);
+	return 0;
+}
+
+
+//use this for rotating display
+bool ILI9341_setMemoryAccess(ili9341_instance *instance, bool rowAddrOrder, bool columnAddrOrder, bool rowColumnExchange){
+	bool response = 0;
+
+	uint8_t memAccessCtrl = (rowAddrOrder<<7)|(columnAddrOrder<<6)|(rowColumnExchange<<5)|(1<<3);
+
+	response |= ILI9341_CS_enable(instance);
+
+	response |= ILI9341_addInstructionToBuffer(instance, 0x36);
+	response |= ILI9341_addDataToBuffer(instance, memAccessCtrl); // "begin" sets it as 0x40 | 0x08 (MX|BGR)
+
+	response |= ILI9341_CS_disable(instance);
+	return 0;
+}
+//examples:
+//ILI9341_setMemoryAccess(&iliLCD01, 0, 0, 0); //draws pokey facing left, bottom at pins, text mirrored
+//ILI9341_setMemoryAccess(&iliLCD01, 0, 0, 1); //draws pokey facing right, right at pins, text readable
+//ILI9341_setMemoryAccess(&iliLCD01, 0, 1, 0); //draws pokey facing right, bottom at pins, text readable
+//ILI9341_setMemoryAccess(&iliLCD01, 0, 1, 1); //draws pokey facing left, left at pins, text mirrored
+//ILI9341_setMemoryAccess(&iliLCD01, 1, 0, 0); //draws pokey facing right, top at pins, text readable
+//ILI9341_setMemoryAccess(&iliLCD01, 1, 0, 1); //draws pokey facing left, right at pins, text mirrored
+//ILI9341_setMemoryAccess(&iliLCD01, 1, 1, 0); //draws pokey facing left, top at pins, text mirrored
+//ILI9341_setMemoryAccess(&iliLCD01, 1, 1, 1); //draws pokey facing right, left at pins, text readable
+
+
+
+
+
+
 
 bool ILI9341_init(ili9341_instance *instance, uint8_t *width, uint8_t *height){
 
@@ -762,8 +864,8 @@ bool ILI9341_init(ili9341_instance *instance, uint8_t *width, uint8_t *height){
 	instance->LCDCommandBufferIndex = 0;
 	instance->LCDCommandsInBuffer = 0;
 	instance->LCDCommandBufferSize = ILI9341_TX_BUFFER_SIZE;
-	instance->xResolution = width-1; //cause if 240, then maximum address is 239
-	instance->yResolution = height-1;
+	instance->xResolution = width;
+	instance->yResolution = height;
 
 	response |= ILI9341_CS_disable(instance);
 
@@ -775,43 +877,16 @@ bool ILI9341_init(ili9341_instance *instance, uint8_t *width, uint8_t *height){
 
 
 
-/*
-// Pass 8-bit (each) R,G,B, get back 16-bit packed color
-int ILI9341_Color565(ili9341_instance *instance, char r, char g, char b) { //ints used here were 16bit
-  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}*/
 
-/*
+// Input 0...255 each colour
+// (is translated to: R to 5-bit (31), G to 6-bit (63), B to 5-bit(31))
+uint16_t ILI9341_Color65k(uint16_t r, uint16_t g, uint16_t b) { //uint16 cause I am doing math with these
+	r = (r&0xFF)/8; //255 -> 31
+	g = (g&0xFF)/4; //255 -> 63
+	b = (b&0xFF)/8; //255 -> 31
 
-void Adafruit_ILI9340::setRotation(uint8_t m) {
+	//b = ( ((r & 31) << 11) | ((g & 63) << 5) | (b & 31) );
+	//return b;
 
-  writecommand(ILI9340_MADCTL);
-  rotation = m % 4; // can't be higher than 3
-  switch (rotation) {
-   case 0:
-     writedata(ILI9340_MADCTL_MX | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTWIDTH;
-     _height = ILI9340_TFTHEIGHT;
-     break;
-   case 1:
-     writedata(ILI9340_MADCTL_MV | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTHEIGHT;
-     _height = ILI9340_TFTWIDTH;
-     break;
-  case 2:
-    writedata(ILI9340_MADCTL_MY | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTWIDTH;
-     _height = ILI9340_TFTHEIGHT;
-    break;
-   case 3:
-     writedata(ILI9340_MADCTL_MV | ILI9340_MADCTL_MY | ILI9340_MADCTL_MX | ILI9340_MADCTL_BGR);
-     _width  = ILI9340_TFTHEIGHT;
-     _height = ILI9340_TFTWIDTH;
-     break;
-  }
+	return ( ((r & 31) << 11) | ((g & 63) << 5) | (b & 31) );
 }
-
-
-void Adafruit_ILI9340::invertDisplay(boolean i) {
-  writecommand(i ? ILI9340_INVON : ILI9340_INVOFF);
-}*/

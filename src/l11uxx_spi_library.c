@@ -9,6 +9,10 @@
 #include "LPC11Uxx.h"
 #endif
 
+
+
+//#define SLOW_AND_SAFE_SPI //disables some speed trix and instead plays it safe (e.g. locking MCU to while loop during SPI transfer to avoid disabling CS by accident)
+
 void l11uxx_spi_pinSetup(int SPINumber, int mosiPin, int misoPin, int sckPin){ //uses physical pin numbers
 	//setting up mosi
 	if(SPINumber == 0) while (1); //lol I am too lazy to make it, I will prolly notice at some point
@@ -86,6 +90,8 @@ void l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int S
 	}
 
 	//CPSDVSR must be even value, bit 0 always reads as 0
+	//CPSDVSR minimum is 2 or larger in master mode
+	if (CPSDVSR < 2) CPSDVSR = 2; //todo: ignore this if slave
 	CPSDVSR &= 0xFE;
 	if(SPINumber == 0){
 		LPC_SSP0->CPSR=CPSDVSR;
@@ -113,12 +119,16 @@ void l11uxx_spi_sendByte(int SPINumber, int data){
 	if(SPINumber == 0){
 		while (!(LPC_SSP0->SR & (0x1 << 1))); //check if transmit buffer full
 		LPC_SSP0->DR = data;
+		#ifdef SLOW_AND_SAFE_SPI
 		while (LPC_SSP0->SR & (0x1 << 4)); //wait while SPI busy //ATTN, locks processor!
+		#endif
 	}
 	else if(SPINumber == 1){
 		while (!(LPC_SSP1->SR & (0x1 << 1))); //check if transmit buffer full
 		LPC_SSP1->DR = data;
+		#ifdef SLOW_AND_SAFE_SPI
 		while (LPC_SSP1->SR & (0x1 << 4)); //wait while SPI busy //ATTN, locks processor!
+		#endif
 	}
 	return;
 }

@@ -393,6 +393,7 @@ bool ili9341_handler(ili9341_instance *instance){
 	while(dataInvalid == 0){
 		//got a packet to send
 		if(LCDCSchange){
+			while (LPC_SSP1->SR & (0x1 << 4)); //wait while SPI busy //ATTN, locks processor!
 			GPIOSetValue(1, 29, ((~LCDdata) & 0x01));
 		} else {
 			GPIOSetValue(1, 31, (LCDDC & 0x01));
@@ -429,7 +430,7 @@ int main(void) {
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
-	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0); //works well for 320x240rgblcd & ext flash & nokiaLCD
+	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 2); //works well for 320x240rgblcd & ext flash & nokiaLCD
 	//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
 	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?), a specific 9113wifi
 	//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
@@ -451,7 +452,8 @@ int main(void) {
 	GPIOSetDir(1, 28, 1); //reset as output
 	GPIOSetDir(1, 29, 1); //CS as output
 	GPIOSetDir(1, 31, 1); //D/C as output
-	GPIOSetValue(1, 27, 0); //BL on (note that it is '1' cause direct-bypass bugfix)
+	GPIOSetValue(1, 29, 1); //set CS to idle
+	GPIOSetValue(1, 27, 1); //BL on (note that it is '1' cause direct-bypass bugfix)
 	delay(10);
 	GPIOSetValue(1, 28, 0); //do reset just in case
 	delay(300);
@@ -460,13 +462,55 @@ int main(void) {
 
 	ili9341_instance iliLCD01;
 	iliLCD01.handlerFunction = &ili9341_handler;
-	//ILI9341_CS_enable(&iliLCD01);
-	//ILI9341_buffertester(&iliLCD01);
+
+	//ILI9341_init(&iliLCD01, 240, 320);
+	//ILI9341_setMemoryAccess(&iliLCD01, 0, 1, 0); //draws pokey facing right, bottom at pins, text readable
+
+	ILI9341_init(&iliLCD01, 320, 240);
+	ILI9341_setMemoryAccess(&iliLCD01, 0, 0, 1); //draws pokey facing right, right at pins, text readable
+
+
+	//RAINBOW!
+	signed int r=255, g=0, b=0, step = 0;
+	while (i < iliLCD01.xResolution){
+		if(step == 0){
+			g+=16;
+			if(g >= 255) step++;
+		}
+		else	if(step == 1){
+			r-=16;
+			if(r <= 0) step++;
+		}
+		else	if(step == 2){
+			b+=16;
+			if(b >= 255) step++;
+		}
+		else	if(step == 3){
+			g-=16;
+			if(g <= 0) step++;
+		}
+		else	if(step == 4){
+			r+=16;
+			if(r >= 255) step++;
+		}
+		else	if(step == 5){
+			b-=16;
+			if(b <= 0) step=0;
+		}
+
+		if(r > 255) r = 255;
+		if(g > 255) g = 255;
+		if(b > 255) b = 255;
+		if(r < 0) r = 0;
+		if(g < 0) g = 0;
+		if(b < 0) b = 0;
+		ILI9341_drawFastVLine(&iliLCD01, i, 0, iliLCD01.yResolution, ILI9341_Color65k(r, g, b));
+		i++;
+	}
 
 
 
-
-	ILI9341_init(&iliLCD01, 240, 320);
+	ILI9341_fillScreen(&iliLCD01, ILI9341_Color65k(0, 255, 255));
 
 	ILI9341_drawPixel(&iliLCD01, 10, 10, 0xFFFF);
 	ILI9341_drawPixel(&iliLCD01, 11, 10, 0xFFFF);
@@ -481,12 +525,18 @@ int main(void) {
 	//ILI9341_drawPixel(&iliLCD01, 500, 500, 0xFFFF);
 
 
-	drawPokey(&iliLCD01, 100, 200);
 
 	ILI9341_drawFastVLine(&iliLCD01, 100, 100, 80, 0x00FF); //do a blue line somewhere
 	ILI9341_drawFastHLine(&iliLCD01, 100, 100, 80, 0xFF00); //do another line
 
-	ILI9341_printString_bg(&iliLCD01, 100, 300, 0x00FF, 0xFF00, "Fuck you cunt I hope you die");
+	ILI9341_printString_bg(&iliLCD01, 100, 100, ILI9341_Color65k(255, 0, 0), ILI9341_Color65k(0, 255, 0), "Kitties B cute");
+
+	ILI9341_invert(&iliLCD01, 1);
+	delay(1000);
+	ILI9341_invert(&iliLCD01, 0);
+	delay(1000);
+
+	drawPokey(&iliLCD01, 100, 10);
 
 	i=0;
 		while(i<50){
