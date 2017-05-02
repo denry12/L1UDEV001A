@@ -66,7 +66,7 @@ void nrf24l01_sendSPIByte(int data){
 
 int nrf24l01_flushSPIRx(){
 	l11uxx_spi_flushRxBuffer(1);
-	return;
+	return 0;
 }
 
 int nrf24l01_recvSPIByte(){

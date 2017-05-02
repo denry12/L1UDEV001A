@@ -26,7 +26,7 @@
 
 //hwtests
 
-#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+//#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 //#include "le_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
 #define WIFI_SSID "4A50DD"
@@ -158,8 +158,8 @@ void setupClocks(){
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<13); //enable clock to ADC
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<15); //enable clock to WDT
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
-//	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
-	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
+	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
+//	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
 	LPC_SYSCON->PRESETCTRL |= (1 << 1); //remove reset from I2C
 	LPC_SYSCON->PRESETCTRL |= (1 << 2); //remove reset from SSP1
 
@@ -320,6 +320,7 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 	dataInvalid = hd44780_getFromTxBuffer(instance, &LCDMSN, &LCDRS, &LCDRW, &LCDE);
 
 
+
 	//PCF-to-LCD pinout
 	//PCF P0 = LCD RS (pin 4)
 	//PCF P1 = LCD RW (pin 5)
@@ -397,7 +398,7 @@ bool ili9341_handler(ili9341_instance *instance){
 			GPIOSetValue(1, 31, (LCDDC & 0x01));
 			l11uxx_spi_sendByte(1, LCDdata);
 		}
-		//delay(1);
+		delay(1);
 		dataInvalid = ILI9341_getFromTxBuffer(instance, &LCDdata, &LCDDC, &LCDCSchange);
 	}
 
@@ -424,7 +425,7 @@ int main(void) {
 
 
 	setupClocks();
-	//setup48MHzInternalClock(); //gotta go fast
+	setup48MHzInternalClock(); //gotta go fast
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
@@ -443,11 +444,14 @@ int main(void) {
 
 	//here starts hustle with ili9341
 
+	bitbangUARTmessage("\r\n\r\n");
+
+
 	GPIOSetDir(1, 27, 1); //BL as output
 	GPIOSetDir(1, 28, 1); //reset as output
 	GPIOSetDir(1, 29, 1); //CS as output
 	GPIOSetDir(1, 31, 1); //D/C as output
-	GPIOSetValue(1, 27, 1); //BL on (note that it is '1' cause direct-bypass bugfix)
+	GPIOSetValue(1, 27, 0); //BL on (note that it is '1' cause direct-bypass bugfix)
 	delay(10);
 	GPIOSetValue(1, 28, 0); //do reset just in case
 	delay(300);
@@ -474,6 +478,15 @@ int main(void) {
 	ILI9341_drawPixel(&iliLCD01, 20, 11, 0xF00F);
 	ILI9341_drawPixel(&iliLCD01, 21, 11, 0xF00F);
 
+	//ILI9341_drawPixel(&iliLCD01, 500, 500, 0xFFFF);
+
+
+	drawPokey(&iliLCD01, 100, 200);
+
+	ILI9341_drawFastVLine(&iliLCD01, 100, 100, 80, 0x00FF); //do a blue line somewhere
+	ILI9341_drawFastHLine(&iliLCD01, 100, 100, 80, 0xFF00); //do another line
+
+	ILI9341_printString_bg(&iliLCD01, 100, 300, 0x00FF, 0xFF00, "Fuck you cunt I hope you die");
 
 	i=0;
 		while(i<50){
@@ -486,6 +499,7 @@ int main(void) {
 			i++;
 			j=0;
 		}
+
 
 
 

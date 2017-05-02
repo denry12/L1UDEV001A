@@ -19,7 +19,15 @@
 #include "esp8266.h"
 #include "hd44780.h"
 
-#include "JDP_wifi_creds.h"
+//#include "JDP_wifi_creds.h"
+#ifndef WIFI_SSID
+#define WIFI_SSID "4A50DD"
+//#define WIFI_SSID "Test-asus"
+#endif
+#ifndef WIFI_PASSWD
+#define WIFI_PASSWD "2444666668888888"
+//#define WIFI_PASSWD "24681357"
+#endif
 
 void HW_test_debugmessage(char text[]){
 	//comment this out if you do not want to
