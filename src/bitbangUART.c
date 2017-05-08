@@ -109,7 +109,7 @@ void bitbangUARTint(int intValue, int newline, int minSpaces){
 	char intString[12];
 	int paddingZeroes=0;
 	itoa(intValue, intString, 10);
-	paddingZeroes = minSpaces - strlen(intValue) + 0;
+	paddingZeroes = minSpaces - strlen(intString);
 	while(paddingZeroes>0){
 		bitbangUARTmessage("0");
 		paddingZeroes--;
@@ -125,7 +125,7 @@ void bitbangUARThex(int intValue, int newline, int minSpaces){
 	int paddingZeroes=0;
 	itoa(intValue, intString, 16);
 	bitbangUARTmessage("0x");
-	paddingZeroes = minSpaces - strlen(intValue) + 2;
+	paddingZeroes = minSpaces - strlen(intString);
 	while(paddingZeroes>0){
 		bitbangUARTmessage("0");
 		paddingZeroes--;
@@ -141,7 +141,7 @@ void bitbangUARTbin(int intValue, int newline, int minSpaces){
 	int paddingZeroes=0;
 	itoa(intValue, intString, 2);
 	bitbangUARTmessage("0b");
-	paddingZeroes = minSpaces - strlen(intValue);
+	paddingZeroes = minSpaces - strlen(intString);
 	while(paddingZeroes>0){
 		bitbangUARTmessage("0");
 		paddingZeroes--;

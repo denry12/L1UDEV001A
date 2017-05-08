@@ -23,6 +23,7 @@
 #include "bitbangUART.h"
 #include "hd44780.h"
 #include "ILI9341.h"
+#include "bufferManipulation.h"
 
 //hwtests
 
@@ -411,6 +412,8 @@ int main(void) {
 
 	int i=0, j=0;
 	int debug=0;
+	volatile char temporaryString1[300], temporaryString2[40];
+
 
 	//printf("Hello, this is app.");
  	GPIOSetDir(0, 2, 0); //set input
@@ -440,12 +443,58 @@ int main(void) {
 	l11uxx_uart_init(9600); //upping speed later mby
 
 
+	bitbangUARTmessage("\r\n\r\n");
 
+	//here starts hustle with circularbuffer16
+	uint16_t testBufferData[50];
+	uint8_t testBuffer8Data[50];
+	circularBuffer_16bit testBuffer;
+	circularBuffer_8bit testBuffer8;
+	circularBuffer16_init(&testBuffer, 50, &testBufferData);
+	circularBuffer8_init(&testBuffer8, 50, &testBuffer8Data);
+	i = 0;
+	while (i < 40){
+		circularBuffer16_put (&testBuffer, i); //put in characters
+		i++;
+	}
+	while (circularBuffer16_get(&testBuffer, &j) == 0){ //empty buffer
+		bitbangUARTint(j,0, 3);
+		bitbangUARTmessage("\r\n");
+	}
+	while (i < 80){
+		circularBuffer16_put (&testBuffer, i); //put in characters
+		i++;
+	}
+	while (circularBuffer16_get(&testBuffer, &j) == 0){ //empty buffer
+			bitbangUARTint(j,0, 3);
+			bitbangUARTmessage("\r\n");
+	}
+
+	while (i < 120){
+		circularBuffer16_put (&testBuffer, i); //put in characters
+		i++;
+	}
+	while (circularBuffer16_get(&testBuffer, &j) == 0){ //empty buffer
+		bitbangUARTint(j,0, 3);
+		bitbangUARTmessage("\r\n");
+	}
+
+	circularBuffer16_put_string ((&testBuffer), ("DATA:123456789;")); //put in characters
+	circularBuffer8_put_string ((&testBuffer8), ("DATA:123456789;")); //put in characters
+	//here ends circularbuffer16
+
+	//here starts findstring
+	//findBetweenTwoStrings("DATA:123456789;", "DATA:", ";", &temporaryString1);
+	temporaryString1[4] = 55;
+	temporaryString1[5] = 0;
+	findBetweenTwoStrings((testBuffer8.Buffer+testBuffer8.BufferReadIndex), "DATA:", ";", &temporaryString1);
+
+	//here ends findstring
 
 
 	//here starts hustle with ili9341
 
-	bitbangUARTmessage("\r\n\r\n");
+
 
 
 	GPIOSetDir(1, 27, 1); //BL as output
@@ -571,7 +620,7 @@ int main(void) {
 
 
 
-	volatile char temporaryString1[300], temporaryString2[40];
+
 
 	l11uxx_i2c_pinSetup(15, 16);
 	l11uxx_i2c_init();
