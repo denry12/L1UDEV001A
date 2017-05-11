@@ -9,8 +9,8 @@
 #define INC_HD44780_H_
 
 //number of commands that can be prepared
-//note that this is used as 8-bit value so keep it below 255 or modify as necessary
-#define HD44780_TX_BUFFER_SIZE 250
+// NB! There is a bug somewhere and it starts to glitch when set above 255. Cannot find it.
+#define HD44780_TX_BUFFER_SIZE 254
 
 #define HD44780_RS_BIT	4
 #define HD44780_RW_BIT	5
@@ -29,10 +29,10 @@ typedef enum{
 typedef struct {
 
 	//generic LCD variables
-	uint8_t LCDCommandBufferSize; 						//hopefully can get away with 8-bit
+	uint16_t LCDCommandBufferSize; 						//hopefully can get away with 8-bit
 	uint16_t LCDCommandBuffer[HD44780_TX_BUFFER_SIZE+1];//8 LSB are for data pins, higher are RS, R/W etc
-	uint8_t LCDCommandBufferIndex; 						//hopefully can get away with 8-bit
-	uint8_t LCDCommandsInBuffer;
+	uint16_t LCDCommandBufferIndex; 						//hopefully can get away with 8-bit
+	uint16_t LCDCommandsInBuffer;
 	//bool (*lcdToBuffer)(); 							//won't be happening. Cause I don't need it.
 	hd44780_state currentstate;
 	hd44780_HWtype HWType;

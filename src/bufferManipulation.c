@@ -150,7 +150,14 @@ bool findBetweenTwoStrings(char *searchString, char *firstString, char *secondSt
 	return 0; //all well
 }
 
-bool findBetweenTwoStrings_circularBuffer(char *searchString, char *firstString, char *secondString, char *resultPtr){
-	while(1); //undone.
-	return 1; //fail
+bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *firstString, char *secondString, char *resultPtr){
+	bool response = 0;
+	response = findBetweenTwoStrings(instance->Buffer+instance->BufferReadIndex, firstString, secondString, resultPtr);
+	if(response){
+		//failed to find
+
+		return response;
+	}
+
+	return response; //found string
 }

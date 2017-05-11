@@ -446,7 +446,7 @@ int main(void) {
 	bitbangUARTmessage("\r\n\r\n");
 
 	//here starts hustle with circularbuffer16
-	uint16_t testBufferData[50];
+	/*uint16_t testBufferData[50];
 	uint8_t testBuffer8Data[50];
 	circularBuffer_16bit testBuffer;
 	circularBuffer_8bit testBuffer8;
@@ -490,13 +490,10 @@ int main(void) {
 	findBetweenTwoStrings((testBuffer8.Buffer+testBuffer8.BufferReadIndex), "DATA:", ";", &temporaryString1);
 
 	//here ends findstring
-
+*/
 
 	//here starts hustle with ili9341
-
-
-
-
+/*
 	GPIOSetDir(1, 27, 1); //BL as output
 	GPIOSetDir(1, 28, 1); //reset as output
 	GPIOSetDir(1, 29, 1); //CS as output
@@ -607,7 +604,7 @@ int main(void) {
 	//iliLCD01.handlerFunction(); //this is broken, do not use
 	ili9341_handler(&iliLCD01);
 	while(1); //I don't wanna continue
-
+*/
 
 	esp8266_instance esp01;
 	esp01.getCharFromESP = &esp8266_ESPToLPC;

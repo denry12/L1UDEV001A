@@ -367,9 +367,9 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 		(*instance).getCharFromESP(instance);
 	}
 
-	esp8266_debugOutput("Getting data:");
-	esp8266_debugOutput(responsePtr);
-	esp8266_debugOutput("\r\n");
+	//esp8266_debugOutput("Getting data:");
+	//esp8266_debugOutput(responsePtr);
+	//esp8266_debugOutput("\r\n");
 
 	memmove(response, responsePtr, strlen(responsePtr)+1); //probably could be optimized to remove this line
 
@@ -785,6 +785,10 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 		instance->rxPacketBufferIndex++;
 
 		instance->rxPacketCount++;
+
+		//bitbangUARTmessage("Packet added to buffer. New rxPacketCount: ");
+		//bitbangUARTint(instance->rxPacketCount,0,2);
+		//bitbangUARTmessage("\r\n");
 	}
 
 	return 0; //is OK
@@ -819,7 +823,7 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	int i = 0;
 
 	//check if any data available
-	if (instance->rxPacketCount == 0) return 1; //can't read what ain't there
+	if (instance->rxPacketCount <= 0) return 1; //can't read what ain't there
 
 	int packetLen;
 	char lengthString[4] = {0, 0, 0, 0}; //fill it with null terminators to avoid waiting for 1066 bytes instead of 10
@@ -846,13 +850,17 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 
 	while(packetStartPointer[i] != 0){//NB! This line assumes packet may not contain 0x00
 		if((packetStartPointer + i) > (&instance->rxPacketBuffer[instance->rxPacketBufferSize] )) //going circular
-			packetStartPointer -= sizeof(instance->rxPacketBuffer[0] * instance->rxPacketBufferSize); //reduce address by buffer size
+			packetStartPointer -= (sizeof(instance->rxPacketBuffer[0])  * instance->rxPacketBufferSize); //reduce address by buffer size
 		data[i] = *(packetStartPointer+i);
 		i++;
 	}
 	data[i] = 0; //null terminator! This is necessary because the cycle where it would be added cancels the loop
 
 	instance->rxPacketCount--; //make sure everyone knows packet was read out
+	//bitbangUARTmessage("Packet read out. New rxPacketCount: ");
+	//bitbangUARTint(instance->rxPacketCount,0,2);
+	//bitbangUARTmessage("\r\n");
+
 
 	//adjust the pointers
 	i = 0;
@@ -861,6 +869,9 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 		i++;
 	}
 
+	//bitbangUARTmessage("Pointer adjusted after readout. New rxPacketCount: ");
+	//bitbangUARTint(instance->rxPacketCount,0,2);
+	//bitbangUARTmessage("\r\n");
 
 	return 0; //is OK
 }
