@@ -83,8 +83,10 @@ bool circularBuffer16_init(circularBuffer_16bit *instance, uint16_t bufferLength
 
 
 bool circularBuffer8_put(circularBuffer_8bit *instance, uint8_t *data){
+
+	char dataToPut = data;
 	if(instance->DataUnitsInBuffer < (instance->BufferSize - 2)){ //verify that there is room (and to spare)
-		instance->Buffer[instance->BufferWriteIndex] = (uint8_t)(data);
+		instance->Buffer[instance->BufferWriteIndex] = dataToPut;
 		instance->BufferWriteIndex++;
 		instance->DataUnitsInBuffer++;
 		if(instance->BufferWriteIndex >= instance->BufferSize)
@@ -136,7 +138,7 @@ bool circularBuffer8_init(circularBuffer_8bit *instance, uint16_t bufferLength, 
 //if called for "data:ABCDEF;" with firststring as "data:" and "secondstring" as ";", will return "ABCDEF" to resultPtr
 bool findBetweenTwoStrings(char *searchString, char *firstString, char *secondString, char *resultPtr){
 
-	char *startIndex = 0, *endIndex = 0; //uint16_t cause strings can be longer than 255 chars
+	char *startIndex = 0, *endIndex = 0;
 	startIndex = strstr(searchString, firstString);
 	if ((!(startIndex))) return 1; //first string not found
 	startIndex += strlen(firstString);
@@ -152,12 +154,92 @@ bool findBetweenTwoStrings(char *searchString, char *firstString, char *secondSt
 
 bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *firstString, char *secondString, char *resultPtr){
 	bool response = 0;
+	uint16_t i = instance->BufferReadIndex;
+	uint16_t firstStringIndex = 0;  //todo: merge these two into one as "stringindex"
+	uint16_t secondStringIndex; //todo: merge these two into one as "stringindex"
+	uint16_t startIndex = 0, endIndex = 0; //these hold bufferinstance actual buffer indexes
+	uint16_t lengthOfResult = 0;
+	bool startIndexFound = 0, endIndexFound = 0; //cause indexes may also be 0
 	response = findBetweenTwoStrings(instance->Buffer+instance->BufferReadIndex, firstString, secondString, resultPtr);
+	//char garbageForBufferEmptying;
 	if(response){
-		//failed to find
+		//failed to find as a straight piece, might be available as circular
+		//start looking from readindex start and search until get "0x00" or run out of buffer (which means it must be in one piece) or match
+		while ((i <= instance->BufferSize) && (!(startIndexFound))){
+			if(instance->Buffer[i] == 0) return 1; //not found, end  of string found instead
+			else if (instance->Buffer[i] == firstString[firstStringIndex]) { //first correct character found, continue
+				//now it is allowed to break string
+				//firstStringIndex++;
+				while(instance->Buffer[i] == firstString[firstStringIndex]){
+					i++;
+					if(i >= instance->BufferSize) i = 0; //necessary to go circular
+					firstStringIndex++;
+				}
+				if(firstString[firstStringIndex] == 0){
+					//firstString found, everything OK
+					startIndex = i;
+					startIndexFound = 1;
+				}
+			} else {
+				//not end of string, not correct character
+				firstStringIndex = 0;
+			}
+			i++;
+		}
+		secondStringIndex = 0;
+		while (!(endIndexFound) && (startIndexFound)){
+			if(i >= instance->BufferSize) i = 0; //necessary to go circular
+			else if(instance->Buffer[i] == 0) return 1; //not found, end  of string found instead
+			else if(instance->Buffer[i] == secondString[secondStringIndex]) {
+				while(instance->Buffer[i] == secondString[secondStringIndex]){//correct character found, continue
+					endIndex = i;
+					//now it is allowed to break string
+					if(i >= instance->BufferSize) i = 0; //necessary to go circular
+					i++;
+					secondStringIndex++;
+				}
+				if(secondString[secondStringIndex] == 0){
+					//secondString found, everything OK
+					//endIndex = i;
+					endIndexFound = 1;
+					break;
+				}
+			} else {
+				//not end of string, not correct character
+				if(endIndexFound == 0) firstStringIndex = 0;
+			}
+
+
+			i++;
+		}
+
+
+
+		if(endIndex && startIndex){ //both are nicely found
+
+			if (endIndex > startIndex) lengthOfResult = endIndex - startIndex;
+			else lengthOfResult = instance->BufferSize + endIndex - startIndex;
+
+			memcpy(resultPtr, &(instance->Buffer[startIndex]), (instance->BufferSize) - (startIndex)); //first half
+			memcpy(resultPtr+((instance->BufferSize) - (startIndex)), &(instance->Buffer[0]), endIndex); //first half //second half
+			memcpy(resultPtr + lengthOfResult, 0, 1); //add null terminator
+
+			//"read" buffer to this point
+			*(&instance->BufferReadIndex) = i;
+
+			//calculating how many datas I read out
+			//if(instance->BufferSize - instance->BufferReadIndex - i)
+			*(&instance->DataUnitsInBuffer) -= instance->BufferSize - instance->BufferReadIndex - i - 1; //+1 cause I want next character after my last character
+
+
+			return 0; //all success
+		}
 
 		return response;
 	}
 
+
+
+	//read buffer up to this point? TBD.
 	return response; //found string
 }

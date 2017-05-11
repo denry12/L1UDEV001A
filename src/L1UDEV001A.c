@@ -446,12 +446,12 @@ int main(void) {
 	bitbangUARTmessage("\r\n\r\n");
 
 	//here starts hustle with circularbuffer16
-	/*uint16_t testBufferData[50];
-	uint8_t testBuffer8Data[50];
+	uint16_t testBufferData[50];
+	uint8_t testBuffer8Data[30]; //nb, change this in init too
 	circularBuffer_16bit testBuffer;
 	circularBuffer_8bit testBuffer8;
 	circularBuffer16_init(&testBuffer, 50, &testBufferData);
-	circularBuffer8_init(&testBuffer8, 50, &testBuffer8Data);
+	circularBuffer8_init(&testBuffer8, 30, &testBuffer8Data);
 	i = 0;
 	while (i < 40){
 		circularBuffer16_put (&testBuffer, i); //put in characters
@@ -479,18 +479,30 @@ int main(void) {
 		bitbangUARTmessage("\r\n");
 	}
 
+	while (circularBuffer8_get(&testBuffer8, &j) == 0); //empty buffer
+	circularBuffer8_put_string ((&testBuffer8), (",.-,.-,.-,.-,.-,.-,.-,")); //insert 22 char to make sure data breaks
+	//circularBuffer8_put_string ((&testBuffer8), (",.-,.-,.-,.-,.-,.-,.-,.-,.-")); //insert 27 char to make sure data breaks
+	while (circularBuffer8_get(&testBuffer8, &j) == 0); //empty buffer
+
 	circularBuffer16_put_string ((&testBuffer), ("DATA:123456789;")); //put in characters
-	circularBuffer8_put_string ((&testBuffer8), ("DATA:123456789;")); //put in characters
+	circularBuffer8_put_string ((&testBuffer8), ("DATA:123456789;NOISE")); //put in characters
 	//here ends circularbuffer16
 
 	//here starts findstring
 	//findBetweenTwoStrings("DATA:123456789;", "DATA:", ";", &temporaryString1);
 	temporaryString1[4] = 55;
 	temporaryString1[5] = 0;
-	findBetweenTwoStrings((testBuffer8.Buffer+testBuffer8.BufferReadIndex), "DATA:", ";", &temporaryString1);
+	//findBetweenTwoStrings((testBuffer8.Buffer+testBuffer8.BufferReadIndex), "DATA:", ";", &temporaryString1);
+
+	findBetweenTwoStrings_circularBuffer(&testBuffer8, "DATA:\0", ";\0", &temporaryString1);
+
+	while (circularBuffer8_get(&testBuffer8, &j) == 0){ //empty buffer
+		bitbangUARTmessage(&j);
+		bitbangUARTmessage("\r\n");
+	}
 
 	//here ends findstring
-*/
+
 
 	//here starts hustle with ili9341
 /*
