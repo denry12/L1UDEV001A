@@ -100,9 +100,17 @@ void delay(int ms){
 	return;
 }
 
+
+/*
 void setup48MHzInternalClock(){
 		//MAKES LPC GO SOVERYFAST
-		LPC_SYSCON->PDAWAKECFG &= (~(1<<7)); //pll powered up after wake (this is a desperate attempt)
+
+	//this function is outdated and equivalent to:
+	//if( setupClocking(0, 48000000) ) while (1); //failed to set clock. Lock MCU
+
+
+
+	LPC_SYSCON->PDAWAKECFG &= (~(1<<7)); //pll powered up after wake (this is a desperate attempt)
 
 		 //set main clock to IRC
 		 LPC_SYSCON->MAINCLKSEL  = 0;
@@ -138,13 +146,16 @@ void setup48MHzInternalClock(){
 
 
 		SystemCoreClock = 48000000; //because without this UART has like 0 idea wtf is going on
-}
+}*/
 
 void setupClocks(){
 	GPIOSetValue(1, 13, 0);
 	GPIOSetValue(1, 14, 1);
 
+	LPC_SYSCON->SYSAHBCLKDIV = 1;
+
 	//LPC_SYSCON->PDRUNCFG |= (1<<5); //power down xtal osc
+	//LPC_SYSCON->PDRUNCFG &= (~(1<<5)); //power up xtal osc
 	LPC_SYSCON->SYSOSCCTRL |= 0x01;
 
 	LPC_SYSCON->PDRUNCFG &= (~(1<<4)); //power up ADC
@@ -164,7 +175,6 @@ void setupClocks(){
 	LPC_SYSCON->PRESETCTRL |= (1 << 1); //remove reset from I2C
 	LPC_SYSCON->PRESETCTRL |= (1 << 2); //remove reset from SSP1
 
-
 	LPC_SYSCON->UARTCLKDIV = 1; //USART clock divider
 
 
@@ -173,7 +183,98 @@ void setupClocks(){
 	return;
 }
 
+bool setupClocking(uint32_t xtalInHz, uint32_t targetMCUclockInHz){
 
+	uint32_t MSEL = 0;
+	uint32_t PSEL = 0;
+	bool xtalUsed;
+	uint32_t pllCtrlReg = 0;
+
+	if(xtalInHz == 0){
+		xtalUsed = 0;
+		xtalInHz = 12000000; //use IRC value, 12 MHz
+	} else xtalUsed = 1;
+
+
+	//setupClocks(); currently done in main, should be done here in future
+
+
+
+	MSEL = targetMCUclockInHz / xtalInHz;
+	if ((MSEL * xtalInHz) != targetMCUclockInHz) return 1; //something fractional, not possible
+
+	MSEL = MSEL - 1; //adjust M to MSEL
+
+	//only 4 possible values for PSEL
+	if		( ((2*targetMCUclockInHz)	>= 156000000) 	&& ((2*targetMCUclockInHz)	<= 320000000) )	 PSEL = 0;
+	else if	( ((4*targetMCUclockInHz)	>= 156000000)	&& ((4*targetMCUclockInHz)	<= 320000000) )	 PSEL = 1;
+	else if	( ((8*targetMCUclockInHz)	>= 156000000)	&& ((8*targetMCUclockInHz)	<= 320000000) )	 PSEL = 2;
+	else if	( ((16*targetMCUclockInHz)	>= 156000000)	&& ((16*targetMCUclockInHz)	<= 320000000) )	 PSEL = 3;
+	else return 1; //cannot find suitable PSEL value
+	//at this point, PSEL value is set in the final format
+
+	//set main clock to IRC, cause we are changing it and want it to run meanwhile
+	 LPC_SYSCON->MAINCLKSEL  = 0;
+	 LPC_SYSCON->MAINCLKUEN  = 0;
+	 LPC_SYSCON->MAINCLKUEN  = 1;
+
+	 //TODO: check that we run on IRC?
+
+	if (xtalUsed == 0){
+		//no xtal.
+		LPC_SYSCON->SYSPLLCLKSEL 	= 0x0; //set sys pll source IRC
+	}
+	else {
+		//have xtal.
+		LPC_SYSCON->SYSPLLCLKSEL 	= 0x1; //set sys pll source XTAL
+		if(LPC_SYSCON->PDRUNCFG & (1<<5)){
+				LPC_SYSCON->PDRUNCFG &= (~(1<<5)); //power up xtal osc
+		}
+		if(LPC_SYSCON->SYSOSCCTRL & (1<<0)){
+				LPC_SYSCON->SYSOSCCTRL &= (~(1<<0)); //disable xtal oscillator bypass
+		}
+		if((LPC_SYSCON->SYSOSCCTRL & (1<<1)) && (xtalInHz > 20000000))
+						LPC_SYSCON->SYSOSCCTRL |= (~(1<<1)); //set freq range 15-25MHz
+		else if ((!(LPC_SYSCON->SYSOSCCTRL & (1<<1))) && (xtalInHz < 20000000))
+			LPC_SYSCON->SYSOSCCTRL &= (~(1<<1)); //set freq range 1-20MHz
+
+	}
+
+	LPC_SYSCON->SYSPLLCLKUEN	= 0x0; //update clock source (step 1/2)
+	LPC_SYSCON->SYSPLLCLKUEN	= 0x1; //update clock source (step 2/2)
+
+
+	LPC_SYSCON->PDRUNCFG |= (1<<7); //pll should be powered down here
+	//while(!(LPC_SYSCON->PDRUNCFG & (1<<7))); //verify that PLL is powered down.
+
+	pllCtrlReg |= (MSEL		);
+	pllCtrlReg |= (PSEL << 5);
+
+	LPC_SYSCON->SYSPLLCTRL = pllCtrlReg;
+
+	//while(!(LPC_SYSCON->SYSPLLCTRL ==  (0x23)));
+	//now might be reasonable to POWER UP THE FUCKING PLL
+	LPC_SYSCON->PDRUNCFG &= (~(1<<7));
+	//while((LPC_SYSCON->PDRUNCFG & (1<<7))); //verify that PLL is powered.
+
+	delay(1);
+	while((!(LPC_SYSCON->SYSPLLSTAT)&0x01)); //while PLL not locked, we wait.
+	GPIOSetValue(1, 13, 1);
+	GPIOSetValue(1, 14, 1);
+
+	LPC_SYSCON->MAINCLKSEL = 0x3; //set sys pll output as main clock input
+	LPC_SYSCON->MAINCLKUEN = 0x0; //update clock source, 1/2
+	LPC_SYSCON->MAINCLKUEN = 0x1; //update clock source, 2/2
+
+	SystemCoreClock = targetMCUclockInHz; //because without this UART has like 0 idea wtf is going on
+
+
+
+
+
+
+	return 0; //all cool
+}
 
 
 
@@ -229,7 +330,7 @@ int debugOutput(char *message){
 
 
 bool esp8266_LPCToESP(esp8266_instance *instance){
-	int response;
+	char response;
 
 	//delay(1);
 	//bitbangUARTmessage("esp01addrL2E: ");
@@ -289,7 +390,7 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	char temporaryBuffer[l11uxx_uart_rx_buffer_current_index];
 
 	//memcpy(temporaryBuffer, l11uxx_uart_rx_buffer, l11uxx_uart_rx_buffer_current_index);
-	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer+0), l11uxx_uart_rx_buffer_current_index);
+	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer), l11uxx_uart_rx_buffer_current_index);
 
 	l11uxx_uart_clearRxBuffer();
 
@@ -429,7 +530,10 @@ int main(void) {
 
 
 	setupClocks();
-	setup48MHzInternalClock(); //gotta go fast
+	//setup48MHzInternalClock(); //gotta go fast
+	//if( setupClocking(16000000, 48000000) ) while (1); //failed to set clock. Lock MCU
+	if( setupClocking(0, 48000000) ) while (1); //failed to set clock. Lock MCU
+
 
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
@@ -443,15 +547,17 @@ int main(void) {
 	l11uxx_uart_init(9600); //upping speed later mby
 
 
+
 	bitbangUARTmessage("\r\n\r\n");
 
+	/*
 	//here starts hustle with circularbuffer16
 	uint16_t testBufferData[50];
-	uint8_t testBuffer8Data[30]; //nb, change this in init too
+	uint8_t testBuffer8Data[400+2]; //nb, change this in init too
 	circularBuffer_16bit testBuffer;
 	circularBuffer_8bit testBuffer8;
 	circularBuffer16_init(&testBuffer, 50, &testBufferData);
-	circularBuffer8_init(&testBuffer8, 30, &testBuffer8Data);
+	circularBuffer8_init(&testBuffer8, 400, &testBuffer8Data);
 	i = 0;
 	while (i < 40){
 		circularBuffer16_put (&testBuffer, i); //put in characters
@@ -485,10 +591,26 @@ int main(void) {
 	while (circularBuffer8_get(&testBuffer8, &j) == 0); //empty buffer
 
 	circularBuffer16_put_string ((&testBuffer), ("DATA:123456789;")); //put in characters
-	circularBuffer8_put_string ((&testBuffer8), ("DATA:123456789;NOISE")); //put in characters
+	//circularBuffer8_put_string ((&testBuffer8), ("DATA:123456789;NOISE")); //put in characters
+	i = 0;
+	while (i< 30){
+		circularBuffer8_put_string ((&testBuffer8), ("0123456789\r\n")); //put in characters
+		i++;
+	}
+
+	bitbangUARTmessage("\r\n8-BUFFER");
+	bitbangUARTmessage("\r\n");
+	while (circularBuffer8_get(&testBuffer8, &j) == 0){ //empty buffer
+			bitbangUARTmessage(&j);
+			//bitbangUARTmessage("\r\n");
+	}
+	bitbangUARTmessage("\r\n");
+*/
+
 	//here ends circularbuffer16
 
 	//here starts findstring
+	/*
 	//findBetweenTwoStrings("DATA:123456789;", "DATA:", ";", &temporaryString1);
 	temporaryString1[4] = 55;
 	temporaryString1[5] = 0;
@@ -500,7 +622,7 @@ int main(void) {
 		bitbangUARTmessage(&j);
 		bitbangUARTmessage("\r\n");
 	}
-
+*/
 	//here ends findstring
 
 
@@ -618,7 +740,18 @@ int main(void) {
 	while(1); //I don't wanna continue
 */
 
+
+	uint8_t espRxBufferData[RX_BUFFER_SIZE+2]; //nb, change this in init too //not sure whether I need that +2. Hopefully not
+	circularBuffer_8bit espRxBuffer;
+	circularBuffer8_init(&espRxBuffer, RX_BUFFER_SIZE, &espRxBufferData);
+
+	uint8_t espTxBufferData[TX_BUFFER_SIZE+2]; //nb, change this in init too //not sure whether I need that +2. Hopefully not
+	circularBuffer_8bit espTxBuffer;
+	circularBuffer8_init(&espTxBuffer, TX_BUFFER_SIZE, &espTxBufferData);
+
 	esp8266_instance esp01;
+	esp01.sendToESPbuffer = &espTxBuffer;
+	esp01.receivedFromESPbuffer = &espRxBuffer;
 	esp01.getCharFromESP = &esp8266_ESPToLPC;
 	esp01.sendCharToESP = &esp8266_LPCToESP;
 	esp8266_initalize(&esp01);
@@ -626,8 +759,9 @@ int main(void) {
 	bitbangUARThex(&esp01,0,0);
 	bitbangUARTmessage("\r\n");
 
-
-
+	l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
+	l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
+	//l11uxx_uart_Send("UART HELLO!\r\n");
 
 
 

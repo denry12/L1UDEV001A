@@ -27,6 +27,7 @@ bool circularBuffer16_put(circularBuffer_16bit *instance, uint16_t *data){
 }
 
 /*bool circularBuffer16_put_string_heavycasting(circularBuffer_16bit *instance, char *data){
+	// this function does weird tricks to put two 8bit characters in one 16bit slot
 	uint16_t i = 0;
 
 	uint16_t currentChar16;
@@ -88,6 +89,7 @@ bool circularBuffer8_put(circularBuffer_8bit *instance, uint8_t *data){
 	if(instance->DataUnitsInBuffer < (instance->BufferSize - 2)){ //verify that there is room (and to spare)
 		instance->Buffer[instance->BufferWriteIndex] = dataToPut;
 		instance->BufferWriteIndex++;
+		instance->Buffer[instance->BufferWriteIndex] = 0; //add null terminator
 		instance->DataUnitsInBuffer++;
 		if(instance->BufferWriteIndex >= instance->BufferSize)
 			instance->BufferWriteIndex = 0; //go circular if necessary
@@ -107,6 +109,8 @@ bool circularBuffer8_put_string(circularBuffer_8bit *instance, char *data){
 		response |= circularBuffer8_put(instance, data[i]);
 		i++;
 	}
+	//response |= circularBuffer8_put(instance, 0);
+
 
 	return response;
 }
@@ -125,6 +129,16 @@ bool circularBuffer8_get(circularBuffer_8bit *instance, uint8_t *data){
 	return 0; //everything success
 }
 
+bool circularBuffer8_peek(circularBuffer_8bit *instance, uint8_t *data){ //shows next character that will pop out without popping it out
+
+	if(instance->DataUnitsInBuffer <= 0) return 1; //buffer empty!?
+	else {
+		(*data) = (uint8_t)(instance->Buffer[instance->BufferReadIndex]);
+	}
+
+	return 0; //everything success
+}
+
 bool circularBuffer8_init(circularBuffer_8bit *instance, uint16_t bufferLength, uint8_t *bufferLocation){
 	instance->BufferSize = bufferLength;
 	instance->Buffer = bufferLocation;
@@ -134,6 +148,16 @@ bool circularBuffer8_init(circularBuffer_8bit *instance, uint16_t bufferLength, 
 	return 0;
 }
 
+bool circularBuffer8_clear(circularBuffer_8bit *instance){
+	instance->BufferWriteIndex = 0;
+	instance->BufferReadIndex = 0;
+	instance->DataUnitsInBuffer = 0;
+	instance->Buffer[0] = 0;
+	instance->Buffer[1] = 0;
+	instance->Buffer[2] = 0;
+	instance->Buffer[3] = 0;
+	return 0;
+}
 
 //if called for "data:ABCDEF;" with firststring as "data:" and "secondstring" as ";", will return "ABCDEF" to resultPtr
 bool findBetweenTwoStrings(char *searchString, char *firstString, char *secondString, char *resultPtr){
@@ -145,7 +169,6 @@ bool findBetweenTwoStrings(char *searchString, char *firstString, char *secondSt
 	endIndex = strstr(startIndex, secondString);
 	if ((!(endIndex))) return 1; //second string not found
 
-
 	memcpy(resultPtr, startIndex, (endIndex) - (startIndex));
 	memcpy(resultPtr + ((endIndex) - (startIndex)), 0, 1); //add null terminator
 
@@ -153,6 +176,15 @@ bool findBetweenTwoStrings(char *searchString, char *firstString, char *secondSt
 }
 
 bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *firstString, char *secondString, char *resultPtr){
+	// this function searches for string first as an entire (via other function), then
+	// looks for first part after read index - if at least one character found, allows roll
+	// over to buffer start and search for the rest
+
+	// alternative solution to this function:
+	// copy a smaller part from end and start, roughly the size necessary for firstString in worst case
+	// so that it would be in one part, then adjust pointers where necessary
+
+
 	bool response = 0;
 	uint16_t i = instance->BufferReadIndex;
 	uint16_t firstStringIndex = 0;  //todo: merge these two into one as "stringindex"
@@ -237,9 +269,5 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 
 		return response;
 	}
-
-
-
-	//read buffer up to this point? TBD.
 	return response; //found string
 }

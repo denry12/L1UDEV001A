@@ -166,24 +166,9 @@ int l11uxx_uart_init(uint32_t baudrate){
 	//LPC_IOCON->PIO1_6|=0x1; //46 - RX from mating part
 
 	uint32_t  DL;
-
 	LPC_SYSCON->SYSAHBCLKCTRL |= (1<<12);
 	LPC_SYSCON->UARTCLKDIV = 0x01;        //UART clock
 	DL = (SystemCoreClock * LPC_SYSCON->SYSAHBCLKDIV) / (16 * baudrate * LPC_SYSCON->UARTCLKDIV);
-
-
-
-	//char buffer[10];
-	    //itoa(DL, buffer, 10);
-	    //printf(buffer);
-	    //printf(";");
-
-	    DL = ((DL*125)+20) / 128;  //this is necessary, maybe because internal clock is so shit?
-
-		    //itoa(DL, buffer, 10);
-		    //printf(buffer);
-
-
 
 
 
@@ -191,11 +176,12 @@ int l11uxx_uart_init(uint32_t baudrate){
 	//DL=37; //yeah, at 48MHz maybe?, almost 19200 w/o xtal
 	//DL=6; //115200 w/o xtal, 12MHz, works well
 	//DL=76; //9600 w/o xtal, 12MHz,
-	LPC_USART->FDR = (12 << 4) | 1; //DivAddVal = 1, MulVal = 12
+	//LPC_USART->FDR = (12 << 4) | 1; //DivAddVal = 1, MulVal = 12
 
+	LPC_USART->FDR = (1<<4) | (0); //If DivAddValue 0, will not affect USART baud rate, MulVal must be 1 or more
 	LPC_USART->LCR = 0b10000011;  //  8-bit character length, DLAB enable ( DLAB = 1)
-	LPC_USART->DLM = DL / 256;    //  Determines the baud rate of the UART (MSB Register)     (Access DLAB = 1)
-	LPC_USART->DLL = DL % 256;    //  Determines the baud rate of the UART (LSB Register)     (Access DLAB = 1)
+	LPC_USART->DLM = (DL >> 8) 	& 0xFF;    //  Determines the baud rate of the UART (MSB Register) (DLAB must be set to 1 first)
+	LPC_USART->DLL = (DL	 )	& 0xFF;    //  Determines the baud rate of the UART (LSB Register) (DLAB must be set to 1 first)
 	LPC_USART->LCR = 0b00000011;  //  8-bit character length , DLAB disable ( DLAB = 0)
 	LPC_USART->FCR = 0b00000111;  //  FIFOEN:Active high enable for both UART Rx and TX FIFOs and U0FCR[7:1] access
 	//  RXFIFORES:Writing a logic 1 to U0FCR[1] will clear all bytes in UART Rx FIFO, reset the pointer logic.

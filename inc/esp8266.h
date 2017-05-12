@@ -13,6 +13,7 @@
 #include "gpio.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include "bufferManipulation.h"
 
 #define RX_BUFFER_SIZE 500
 #define TX_BUFFER_SIZE 500
@@ -40,7 +41,7 @@ typedef enum{
 //}esp8266_connectionstate;
 
 
-typedef struct {
+/*typedef struct {
 	int rxBufferSize;
 	char receivedFromESPbuffer[RX_BUFFER_SIZE];
 	int rxCircBufferIndex;
@@ -60,7 +61,24 @@ typedef struct {
 	int rxPacketBufferIndex;
 	char *rxPacketPointer[RX_PACKET_MAX_COUNT];
 	int rxPacketCount;
+} esp8266_instance;*/
+
+typedef struct {
+	circularBuffer_8bit *receivedFromESPbuffer;
+	circularBuffer_8bit *sendToESPbuffer;
+	bool (*getCharFromESP)();
+	bool (*sendCharToESP)();
+	esp8266_state currentstate;
+	char cipmux_latest;
+	int openConnections;
+	//char *oldestRxPointer; //pointer to oldest packet in Rx packet FIFO
+	char rxPacketBuffer[RX_PACKET_CONTENT_MAX_SIZE*RX_PACKET_MAX_COUNT];
+	int rxPacketBufferSize;
+	int rxPacketBufferIndex;
+	char *rxPacketPointer[RX_PACKET_MAX_COUNT];
+	int rxPacketCount;
 } esp8266_instance;
+
 
 //typedef struct{
 //	esp8266_instance *owner;

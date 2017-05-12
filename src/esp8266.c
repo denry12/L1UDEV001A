@@ -51,26 +51,27 @@ const char debug_testline_messages_SCARR = 0;
 //char esp_8266_cipmux_latest = 0; //only modify via special function
 
 bool esp8266_resetRxBuffer(esp8266_instance *instance){
-	instance->rxBufferSize = RX_BUFFER_SIZE;
-	instance->rxCircBufferIndex = 0;
-	instance->charactersInRxBuffer = 0;
-	instance->receivedFromESPbuffer[0] = 0;
-	instance->receivedFromESPbuffer[1] = 0; //hopefully not necessary
+	//instance->rxBufferSize = RX_BUFFER_SIZE;
+	//instance->rxCircBufferIndex = 0;
+	//instance->charactersInRxBuffer = 0;
+	//instance->receivedFromESPbuffer[0] = 0;
+	//instance->receivedFromESPbuffer[1] = 0; //hopefully not necessary
+	circularBuffer8_clear(instance->receivedFromESPbuffer);
 	return 0;
 }
 
 bool esp8266_resetTxBuffer(esp8266_instance *instance){
-	instance->txBufferSize = TX_BUFFER_SIZE;
-	instance->txCircBufferIndex = 0;
-	instance->charactersInTxBuffer = 0;
-	instance->sendToESPbuffer[0] = 0;
-	instance->sendToESPbuffer[1] = 0; //hopefully not necessary
+	//instance->txBufferSize = TX_BUFFER_SIZE;
+	//instance->txCircBufferIndex = 0;
+	//instance->charactersInTxBuffer = 0;
+	//instance->sendToESPbuffer[0] = 0;
+	//instance->sendToESPbuffer[1] = 0; //hopefully not necessary
 	return 0;
 }
 
 bool esp8266_initalize(esp8266_instance *instance){
-	esp8266_resetRxBuffer(instance);
-	esp8266_resetTxBuffer(instance);
+	//esp8266_resetRxBuffer(instance);
+	//esp8266_resetTxBuffer(instance);
 	instance->currentstate = ESP8266_STATE_IDLE;
 	instance->rxPacketCount = 0;
 	instance->rxPacketBufferSize = RX_PACKET_CONTENT_MAX_SIZE*RX_PACKET_MAX_COUNT;
@@ -82,7 +83,7 @@ bool esp8266_initalize(esp8266_instance *instance){
 
 bool esp8266_charFromUartToBuffer(esp8266_instance *instance, char character){
 	//is there room?
-	if((instance->charactersInRxBuffer) >= (instance->rxBufferSize))
+	/*if((instance->charactersInRxBuffer) >= (instance->rxBufferSize))
 		return 1; //no room.
 
 	instance->receivedFromESPbuffer[instance->rxCircBufferIndex] = character;
@@ -92,13 +93,19 @@ bool esp8266_charFromUartToBuffer(esp8266_instance *instance, char character){
 	//go circular if necessary
 	if(instance->rxCircBufferIndex > instance->rxBufferSize) instance->rxCircBufferIndex = 0;
 	instance->charactersInRxBuffer++;
-
 	return 0; //all OK
+	*/
+
+	return circularBuffer8_put(instance->receivedFromESPbuffer, character);
+
+
 }
 
 int16_t esp8266_charFromBufferToUart(esp8266_instance *instance){
-
-	//is there anything in buffer?
+	char character;
+	circularBuffer8_get(instance->sendToESPbuffer, &character);
+	return character;
+	/*//is there anything in buffer?
 	if(instance->charactersInTxBuffer == 0)
 		return -1; //o no
 
@@ -109,10 +116,13 @@ int16_t esp8266_charFromBufferToUart(esp8266_instance *instance){
 	character = instance->sendToESPbuffer[index];
 	instance->charactersInTxBuffer--;
 
-	return character; //all OK
+	return character; //all OK*/
 }
 
 bool esp8266_sendString(esp8266_instance *instance, char *command){
+
+	return circularBuffer8_put_string(instance->sendToESPbuffer, command);
+	/*
 	int i=0;
 	while(command[i] != 0){
 		if((instance->charactersInTxBuffer) < (instance->txBufferSize)){
@@ -125,6 +135,7 @@ bool esp8266_sendString(esp8266_instance *instance, char *command){
 	}
 
 	return 0;
+	*/
 }
 
 //HW specific code starts here
@@ -160,10 +171,24 @@ int esp8266_debugOutput(char *message){
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 //"response" contains everything after \r\n after command echo
 //and ends prior to "OK" (so ends with \r\n)
 int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command, char *response){ //with error, errorcode may be contained in "response". Not guaranteed.
-	char *okResponse = 0;
+	//char *okResponse = 0;
+	bool okResponse = 0;
 
 	//bitbangUARTmessage("esp01addrSCARR: ");
 	//bitbangUARThex(instance,0,0);
@@ -183,34 +208,47 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 50\n\r");
 	//send out most of command
 	esp8266_sendString(instance, command);
+	esp8266_resetRxBuffer(instance);
 
-	 esp8266_resetRxBuffer(instance);
-	 rxBufferLocalWaypoint=instance->rxCircBufferIndex; //keeps in mind where we actually start our response
+	 //rxBufferLocalWaypoint=instance->rxCircBufferIndex; //keeps in mind where we actually start our response
 
 	 //from this point on, I know what I am sending out. Just add it to the localwaypoint value
-	 rxBufferLocalWaypoint += (strlen(command));
-	 rxBufferLocalWaypoint += 2; //add \r\n
+	 //rxBufferLocalWaypoint += (strlen(command));
+	 //rxBufferLocalWaypoint += 2; //add \r\n
 
 	 //rxBufferLocalWaypoint += 1; //otherwise a wild extra \r (0x0D) appears. Gotta investigate later maybe - not issue tho
 
+	while(instance->sendToESPbuffer->DataUnitsInBuffer){ //do the actual sending from ESP buffer to UART, most part
+
+			(*instance).sendCharToESP(instance);
+	}
 
 		//finalize command
 	esp8266_sendString(instance, "\x0D\x0A"); //this is what ESP responds as well. \r\n (checked at 21.04.2017)
 
 	instance->currentstate = ESP8266_STATE_TXNEEDED;
 
-	while(instance->charactersInTxBuffer){ //do the actual sending from ESP buffer to UART
+	while(instance->sendToESPbuffer->DataUnitsInBuffer){ //do the actual sending from ESP buffer to UART
 
 		(*instance).sendCharToESP(instance);
 	}
 
 	instance->currentstate = ESP8266_STATE_WAITINGRESPONSE;
 
+
+
+
+
+
+
+
+
 	esp8266_debugOutput("CmdR:");
 	esp8266_debugOutput(command);
 	esp8266_debugOutput("\n\r");
 
-	while(instance->charactersInRxBuffer < 2){ //deffo not enough data
+	while(instance->receivedFromESPbuffer->DataUnitsInBuffer < 2){ //deffo not enough data
+		//this should be replaced with check if I have a response in buffer
 		(*instance).getCharFromESP(instance);
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
@@ -219,20 +257,51 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 		delay(100);
 	}
 
-	//bool readDataReturnValue = (*instance).getCharFromESP(instance);
+	if(retriesDone>=retriesMax){
+			esp8266_debugOutput("FAIL(A)\n\r");
+			esp8266_debugOutput("\n\r");
+			instance->currentstate = ESP8266_STATE_IDLE;
+			return 0; //very broken
+	}
+
 
 	while((*instance).getCharFromESP(instance) == 0);//{ //and if data still keeps on coming
+
+	//right now buffer still has echo inside. Read out until \r or \n
+	circularBuffer8_peek(instance->receivedFromESPbuffer, response);
+	while ( (!((*(response)) == '\r')) && (!( (*(response)) == '\n'))){
+			if(circularBuffer8_get(instance->receivedFromESPbuffer, response)) return 0; //something is broken, buffer empty
+			if(circularBuffer8_peek(instance->receivedFromESPbuffer, response)) return 0; //something is broken, buffer empty
+	}
+
+
+	//at this point my Rx buffer should start with \r\r\n or \r\n or smth like that
+	//read it out and have actual response available
+
+	circularBuffer8_peek(instance->receivedFromESPbuffer, response); //unnecessary, already have it
+	while (( (*(response)) == '\r') || ( (*(response)) == '\n')){
+		circularBuffer8_get(instance->receivedFromESPbuffer, response);
+		circularBuffer8_peek(instance->receivedFromESPbuffer, response);
+	}
+
+	//next thing that will pop out is response
+	i=0;
+	while(!( (circularBuffer8_get(instance->receivedFromESPbuffer, ((response+i) )) ))){
+		//as long as it doesn't end with a 0, copy to response
+		if( (*(response+i)) == 0) break;
+		i++;
+	}
+	(*(response+i)) = 0;
+
+	//bool readDataReturnValue = (*instance).getCharFromESP(instance);
+
+
 
 	bitbangUARTloadingbar(retriesMax-1, retriesMax-1);
 
 
 
-	if(retriesDone>=retriesMax){
-		esp8266_debugOutput("FAIL(A)\n\r");
-		esp8266_debugOutput("\n\r");
-		instance->currentstate = ESP8266_STATE_IDLE;
-		return 0; //very broken
-	}
+
 
 
 	retriesDone=0;
@@ -240,28 +309,35 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	while(!(okResponse)){
 		(*instance).getCharFromESP(instance);
 		//maybe error instead!? no point to wait then
-		if(strstr(&instance->receivedFromESPbuffer, "ERROR")){
+		//findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "\r\n", "\r\n", &response);
+
+
+		//TODO: GO BACK FROM findBetweenTwoStrings to strstr
+
+		if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "ERROR", "\r\n", response)){
 			esp8266_debugOutput("FAIL(E)\n\r");
-			strcpy(response, "ERROR");
+			strcpy(&response, "ERROR");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
-		if(strstr(&instance->receivedFromESPbuffer, "FAIL")){
+		if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "FAIL", "\r\n", response)){
 			esp8266_debugOutput("FAIL(F)\n\r");
-			strcpy(response, "FAIL");
+			strcpy(&response, "FAIL");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
-		if(strstr(&instance->receivedFromESPbuffer, "busy")){
+
+		if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "busy", "\r\n", response)){
 			esp8266_debugOutput("FAIL(b)\n\r");
-			strcpy(response, "busy");
+			strcpy(&response, "busy");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
-		okResponse = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "OK"); //gives memory address to last OK (start)
+		okResponse = (!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "OK", "\r\n", response));
+		//okResponse = strstr(&response, "OK");
 
 		//this should contain OK as well
-		//THIS HERE IS USEFUL DEBUG
+		//THIS HERE IS USEFUL DEBUG <- used to be, that is
 		//bitbangUARTmessage("What I think I received: ");
 		//bitbangUARTmessage(instance->receivedFromESPbuffer + rxBufferLocalWaypoint);
 
@@ -284,13 +360,16 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	//lengthOfResponse = okResponse; //DEBUG <- often 0x0000017b (including OK)
 	//lengthOfResponse = (int)(&l11uxx_uart_rx_buffer); // <- gives nicely same as RxBSt
 	//lengthOfResponse = (int)(okResponse) - (int)(&instance->receivedFromESPbuffer);
-	lengthOfResponse = (instance->rxCircBufferIndex - rxBufferLocalWaypoint);
-	lengthOfResponse -= 5; //stop from copying last two characetrs ("OK"+\r\n\x00)
+
+	//lengthOfResponse = (instance->rxCircBufferIndex - rxBufferLocalWaypoint);
+	//lengthOfResponse -= 5; //stop from copying last two characetrs ("OK"+\r\n\x00)
+	lengthOfResponse = strlen(&response);
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 250\n\r");
+
 	//bitbangUARTmessage((&instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer);// + instance->rxCircBufferIndex);
 
 	//"response" shall contain string between \r\n from sent command echo to OK
-	strncpy(response, instance->receivedFromESPbuffer + rxBufferLocalWaypoint, lengthOfResponse);
+	//strncpy(response, instance->receivedFromESPbuffer + rxBufferLocalWaypoint, lengthOfResponse);
 
 
 
@@ -301,13 +380,13 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 
 
 	//cut string
-	rxBufferLocalWaypoint=strlen(command);
+	//rxBufferLocalWaypoint=strlen(command);
 
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 255\n\r");
-	rxBufferLocalWaypoint = 0; //cleared, cause now we are looking through "response", not buffer
-	while((response[rxBufferLocalWaypoint] == '\r') || (response[rxBufferLocalWaypoint] == '\n')) rxBufferLocalWaypoint++;
-	for (i=0; i<lengthOfResponse; i++) response[i] = response[i+rxBufferLocalWaypoint];
-	response[lengthOfResponse-rxBufferLocalWaypoint] = 0; //add null terminator to be sure. Likely not necessary but I have trust issues.
+	//rxBufferLocalWaypoint = 0; //cleared, cause now we are looking through "response", not buffer
+	//while((response[rxBufferLocalWaypoint] == '\r') || (response[rxBufferLocalWaypoint] == '\n')) rxBufferLocalWaypoint++;
+	//for (i=0; i<lengthOfResponse; i++) response[i] = response[i+rxBufferLocalWaypoint];
+	//response[lengthOfResponse-rxBufferLocalWaypoint] = 0; //add null terminator to be sure. Likely not necessary but I have trust issues.
 
 
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 260\n\r");
@@ -321,6 +400,20 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	return 0; //very broken
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 int esp8266_sendCommandAndWaitOK(esp8266_instance *instance, char *command){
 	char response[80]; //this could be written anywhere, it is never read
@@ -344,13 +437,12 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	char lengthString[4] = {0, 0, 0, 0}; //fill it with null terminators to avoid waiting for 1066 bytes instead of 10
 	while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
 	char *responsePtr = 0;
+	char responseString[RX_PACKET_CONTENT_MAX_SIZE];
 	char *lenStartPtr = 0;
 	char *lenEndPtr = 0;
-	responsePtr = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "+IPD,"); //gives memory address to last +IPD, (start)
+	if (!(findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "+IPD,", "\r\n", &responseString))) return 1; //no data :' (
 
-	if (responsePtr == 0) return 1; //no data :' (
-
-	lenStartPtr = strstr((responsePtr), ","); //gets first comma from "+IPD,"
+	lenStartPtr = strstr((&responseString), ","); //gets first comma from "+IPD,"
 	responsePtr = lenStartPtr+1; //this sets "responsePtr" just after first "," in "+IPD,<id>,<len>:"
 	lenStartPtr = strstr((lenStartPtr+1), ","); //gets second comma from "+IPD,<id>,"
 	lenStartPtr += 1; //go past the second comma, this is where length actually starts
@@ -363,7 +455,7 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 
 	//while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
 	while(bytesReceived <= packetLen){
-		bytesReceived = (&(instance->receivedFromESPbuffer[instance->rxCircBufferIndex]) - lenEndPtr);
+		bytesReceived = ((instance->receivedFromESPbuffer->DataUnitsInBuffer));
 		(*instance).getCharFromESP(instance);
 	}
 
@@ -490,7 +582,7 @@ int esp8266_joinAP(esp8266_instance *instance, char *ssid, char *passwd){
 	//check status
 	strcpy(modeConfString,"");
 	while(retryCounter<maxRetries){
-		if(esp8266_sendCommandAndReadResponse(instance, "AT+CIPSTATUS", modeConfString)){
+		if(esp8266_sendCommandAndReadResponse(instance, "AT+CIPSTATUS", &modeConfString)){
 			//bitbangUARTmessage("\n\r!!");
 			bitbangUARTmessage(modeConfString);
 			//bitbangUARTmessage("!!\n\r");
@@ -712,6 +804,7 @@ bool esp8266_openConnection(esp8266_instance *instance, uint8_t id, char *type, 
 
 int esp8266_sendData(esp8266_instance *instance, uint8_t id, int length, char *data[]){
 	char modeConfString[80];
+	char responseString[20];
 	char idString[2]; //should never go over 1 char+nullterminator
 	char lengthString[5]  = {0, 0, 0, 0, 0}; //should never go over 4 char+nullterminator
 	char *okResponse = 0;
@@ -736,7 +829,7 @@ int esp8266_sendData(esp8266_instance *instance, uint8_t id, int length, char *d
 	esp8266_sendString(instance, data);
 	instance->currentstate = ESP8266_STATE_TXNEEDED;
 
-	while(instance->charactersInTxBuffer){ //do the actual sending from ESP buffer to UART
+	while(instance->sendToESPbuffer->DataUnitsInBuffer){ //do the actual sending from ESP buffer to UART
 
 		(*instance).sendCharToESP(instance);
 	}
@@ -744,7 +837,10 @@ int esp8266_sendData(esp8266_instance *instance, uint8_t id, int length, char *d
 	//verify that sending succeeded (looking for "SEND OK" string basically)
 	while((*instance).getCharFromESP(instance) == 0);//{ //and if data still keeps on coming
 
-	okResponse = strstr(&(instance->receivedFromESPbuffer) + instance->rxCircBufferIndex - instance->charactersInRxBuffer, "OK"); //gives memory address to last OK (start)
+
+
+	findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "\r\n", "\r\n", &responseString);
+	okResponse = strstr(&responseString, "OK");
 	if (okResponse == 0){
 		instance->currentstate = ESP8266_STATE_IDLE;
 		esp8266_debugOutput("Send FAIL!\r\n");

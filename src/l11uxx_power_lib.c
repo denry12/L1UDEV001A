@@ -134,7 +134,10 @@ int l11uxx_power_regularClocks(){
 	//set up watchdog if used typically
 
 	setupClocks();
-	setup48MHzInternalClock(); //gotta go fast
+	//setup48MHzInternalClock(); //gotta go fast
+
+	//this is a violent placeholder.
+	if( setupClocking(0, 12000000) ) while (1); //failed to set clock. Lock MCU
 
 
 
