@@ -408,6 +408,7 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 	while (currentIndex < (maxIndex + 0)){ //+1 to make sure nullterminator also comes over
 		if(esp8266_charFromUartToBuffer(instance, temporaryBuffer[currentIndex]) == 0)
 			currentIndex++;
+		else return 1; //something wrong
 	}
 
 	return 0;
@@ -524,6 +525,8 @@ int main(void) {
 	GPIOSetDir(1, 13, 1);
 	GPIOSetDir(1, 14, 1);
 	GPIOSetDir(1, 27, 1);
+	GPIOSetDir(0, 8, 1);
+	GPIOSetValue(0, 8, 0);
 
 	GPIOSetDir(0, 17, 1); //I use it for debug
 	GPIOSetValue(0, 17, 0);

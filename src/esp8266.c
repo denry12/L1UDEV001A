@@ -253,12 +253,12 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
 		bitbangUARTloadingbar(retriesDone, retriesMax-1);
-		bitbangUARTmessage(" 1/2  ");
+		bitbangUARTmessage(" 1/3  ");
 		delay(100);
 	}
 
 	if(retriesDone>=retriesMax){
-			esp8266_debugOutput("FAIL(A)\n\r");
+			esp8266_debugOutput("FAIL(A)1/3\n\r");
 			esp8266_debugOutput("\n\r");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
@@ -277,12 +277,28 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 
 	//at this point my Rx buffer should start with \r\r\n or \r\n or smth like that
 	//read it out and have actual response available
-
-	circularBuffer8_peek(instance->receivedFromESPbuffer, response); //unnecessary, already have it
+	circularBuffer8_peek(instance->receivedFromESPbuffer, response); //unnecessary, already have it from previous reading
 	while (( (*(response)) == '\r') || ( (*(response)) == '\n')){
-		circularBuffer8_get(instance->receivedFromESPbuffer, response);
-		circularBuffer8_peek(instance->receivedFromESPbuffer, response);
+		if(!(circularBuffer8_get(instance->receivedFromESPbuffer, response))) retriesDone = 0;
+		if(!(circularBuffer8_peek(instance->receivedFromESPbuffer, response))) retriesDone = 0;
+		else {
+			retriesDone++;
+			if(retriesDone>=retriesMax) break;
+			bitbangUARTloadingbar(retriesDone, retriesMax-1);
+			bitbangUARTmessage(" 2/3  ");
+			delay(100);
+
+		}
 	}
+	if(retriesDone>=retriesMax){
+			esp8266_debugOutput("FAIL(A)2/3\n\r");
+			esp8266_debugOutput("\n\r");
+			instance->currentstate = ESP8266_STATE_IDLE;
+			return 0; //very broken
+	}
+
+
+
 
 	//next thing that will pop out is response
 	i=0;
@@ -291,7 +307,7 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 		if( (*(response+i)) == 0) break;
 		i++;
 	}
-	(*(response+i)) = 0;
+	(*(response+i)) = 0;	//add null terminator
 
 	//bool readDataReturnValue = (*instance).getCharFromESP(instance);
 
@@ -314,27 +330,30 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 
 		//TODO: GO BACK FROM findBetweenTwoStrings to strstr
 
-		if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "ERROR", "\r\n", response)){
+		//if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "ERROR", "\r\n", response)){
+		if(strstr(response, "ERROR")){
 			esp8266_debugOutput("FAIL(E)\n\r");
-			strcpy(&response, "ERROR");
+			strcpy(response, "ERROR");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
-		if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "FAIL", "\r\n", response)){
+		//if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "FAIL", "\r\n", response)){
+		if(strstr(response, "FAIL")){
 			esp8266_debugOutput("FAIL(F)\n\r");
-			strcpy(&response, "FAIL");
+			strcpy(response, "FAIL");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
 
-		if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "busy", "\r\n", response)){
+		//if(!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "busy", "\r\n", response)){
+		if(strstr(response, "busy")){
 			esp8266_debugOutput("FAIL(b)\n\r");
-			strcpy(&response, "busy");
+			strcpy(response, "busy");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 		}
-		okResponse = (!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "OK", "\r\n", response));
-		//okResponse = strstr(&response, "OK");
+		//okResponse = (!findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "OK", "\r\n", response));
+		okResponse = strstr(response, "OK");
 
 		//this should contain OK as well
 		//THIS HERE IS USEFUL DEBUG <- used to be, that is
@@ -344,7 +363,7 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
 		bitbangUARTloadingbar(retriesDone, retriesMax-1);
-		bitbangUARTmessage(" 2/2");
+		bitbangUARTmessage(" 3/3");
 		delay(100);
 	}
 	bitbangUARTloadingbar(retriesMax-1, retriesMax-1);
@@ -352,7 +371,7 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 	if(debug_testline_messages_SCARR) bitbangUARTmessage("     Testline: 240\n\r");
 
 	if(retriesDone>=retriesMax){
-			esp8266_debugOutput("FAIL(A)\n\r");
+			esp8266_debugOutput("FAIL(A)3/3\n\r");
 			instance->currentstate = ESP8266_STATE_IDLE;
 			return 0; //very broken
 	}
@@ -431,39 +450,83 @@ int esp8266_sendCommandAndWaitOK(esp8266_instance *instance, char *command){
 
 //returns response starting after "+IPD,", so it starts with connection ID.
 bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
-	esp8266_resetRxBuffer(instance);
+	//esp8266_resetRxBuffer(instance);
 	uint16_t packetLen = 0;
 	uint16_t bytesReceived = 0;
+	uint16_t i = 0;
 	char lengthString[4] = {0, 0, 0, 0}; //fill it with null terminators to avoid waiting for 1066 bytes instead of 10
 	while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
 	char *responsePtr = 0;
-	char responseString[RX_PACKET_CONTENT_MAX_SIZE];
+	char responseString[RX_PACKET_CONTENT_MAX_SIZE+10]; //add room for header
+	 responseString[0] = 0;
+	 responseString[1] = 0;
+	 responseString[2] = 0;
+	 responseString[3] = 0;
+	 responseString[4] = 0;
+	 responseString[5] = 0;
 	char *lenStartPtr = 0;
 	char *lenEndPtr = 0;
-	if (!(findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "+IPD,", "\r\n", &responseString))) return 1; //no data :' (
+	char charactersFromBuffer[2];
+	//char *responseEndPtr = 0;
+	if ((findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "+IPD,", ":", responseString))) return 1; //no data :' (
+	//if (instance->receivedFromESPbuffer->DataUnitsInBuffer <= 0) return 1; //DEFINITELY no data, as previous can fail
 
-	lenStartPtr = strstr((&responseString), ","); //gets first comma from "+IPD,"
-	responsePtr = lenStartPtr+1; //this sets "responsePtr" just after first "," in "+IPD,<id>,<len>:"
-	lenStartPtr = strstr((lenStartPtr+1), ","); //gets second comma from "+IPD,<id>,"
-	lenStartPtr += 1; //go past the second comma, this is where length actually starts
-	lenEndPtr = strstr(lenStartPtr, ":");
+	lenStartPtr = strstr((responseString), ","); //gets first comma from "<id>,<len>:"
+	lenStartPtr = lenStartPtr+1; //this sets "lenStartPtr" just after first "," in "<id>,<len>:"
+	//lenStartPtr = strstr((lenStartPtr+1), ","); //gets second comma from "+IPD,<id>,"
+	//lenStartPtr += 1; //go past the second comma, this is where length actually starts
+	//lenEndPtr = strstr(lenStartPtr, ":");
 
+	//and last protection prior to strncpy
+	//if(!(lenStartPtr) || (!(lenEndPtr))) return 1;
 
-
-	strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
+	//strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
+	strcpy(lengthString, lenStartPtr);
+	//if ((findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, ",", ":", lengthString)))
+		//return 1; //find lengthstring
 	packetLen = atoi(lengthString);
 
+	//at this point, "responseString" has only "<id>,<len>"
+	//so gotta add dataLen+1 bytes. +i cause colon
+
+	charactersFromBuffer[1] = 0;
+	while(i < (packetLen+1)){
+		if (circularBuffer8_get(instance->receivedFromESPbuffer, charactersFromBuffer) == 0)
+			strcat(responseString,charactersFromBuffer);
+		else return 1;
+		i++;
+	}
+
+
+
+	//bytesReceived = (lenEndPtr + 1) ???;
+/*
+	bytesReceived = strlen(lenEndPtr+1);
+	while (bytesReceived < packetLen) {
+		while(! ((*instance).getCharFromESP(instance))); //and if data still keeps on coming
+		if (circularBuffer8_get(instance, lenEndPtr+bytesReceived) == 0) bytesReceived += 1;
+
+	}*/
+
 	//while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
-	while(bytesReceived <= packetLen){
+	/*while(bytesReceived <= packetLen){
 		bytesReceived = ((instance->receivedFromESPbuffer->DataUnitsInBuffer));
 		(*instance).getCharFromESP(instance);
-	}
+	}*/
+
+	//TODO: check if lengthstring matches data length, if not, return error
 
 	//esp8266_debugOutput("Getting data:");
 	//esp8266_debugOutput(responsePtr);
 	//esp8266_debugOutput("\r\n");
 
-	memmove(response, responsePtr, strlen(responsePtr)+1); //probably could be optimized to remove this line
+
+
+
+	//memmove(response, responsePtr, strlen(responsePtr)+1);
+	memmove(response, responseString, strlen(responseString));
+
+
 
 	return 0; //success
 }

@@ -139,14 +139,7 @@ bool circularBuffer8_peek(circularBuffer_8bit *instance, uint8_t *data){ //shows
 	return 0; //everything success
 }
 
-bool circularBuffer8_init(circularBuffer_8bit *instance, uint16_t bufferLength, uint8_t *bufferLocation){
-	instance->BufferSize = bufferLength;
-	instance->Buffer = bufferLocation;
-	instance->BufferWriteIndex = 0;
-	instance->BufferReadIndex = 0;
-	instance->DataUnitsInBuffer = 0;
-	return 0;
-}
+
 
 bool circularBuffer8_clear(circularBuffer_8bit *instance){
 	instance->BufferWriteIndex = 0;
@@ -156,6 +149,16 @@ bool circularBuffer8_clear(circularBuffer_8bit *instance){
 	instance->Buffer[1] = 0;
 	instance->Buffer[2] = 0;
 	instance->Buffer[3] = 0;
+	return 0;
+}
+
+bool circularBuffer8_init(circularBuffer_8bit *instance, uint16_t bufferLength, uint8_t *bufferLocation){
+	instance->BufferSize = bufferLength;
+	instance->Buffer = bufferLocation;
+	circularBuffer8_clear(instance);
+	//instance->BufferWriteIndex = 0;
+	//instance->BufferReadIndex = 0;
+	//instance->DataUnitsInBuffer = 0;
 	return 0;
 }
 
@@ -190,11 +193,27 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 	uint16_t firstStringIndex = 0;  //todo: merge these two into one as "stringindex"
 	uint16_t secondStringIndex; //todo: merge these two into one as "stringindex"
 	uint16_t startIndex = 0, endIndex = 0; //these hold bufferinstance actual buffer indexes
+	uint16_t *startIndexPtr = 0, *endIndexPtr = 0; //these are used only when response in one piece (not circular)
 	uint16_t lengthOfResult = 0;
 	bool startIndexFound = 0, endIndexFound = 0; //cause indexes may also be 0
 	response = findBetweenTwoStrings(instance->Buffer+instance->BufferReadIndex, firstString, secondString, resultPtr);
+	//response = 1; //to fake it was not found directly
+	if (!(response)){ //read out from buffer so it is up to date
+		//it is known that it is in one part
+		//startIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, firstString);
+		//endIndexPtr = strstr(startIndexPtr, secondString);
+
+		endIndexPtr = (strstr(instance->Buffer+instance->BufferReadIndex, resultPtr));
+		while (endIndexPtr > (instance->Buffer+instance->BufferReadIndex)){
+			instance->BufferReadIndex += 1;
+			instance->DataUnitsInBuffer -= 1;
+			endIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, resultPtr);
+		}
+		instance->BufferReadIndex += strlen(resultPtr);//endIndexPtr - startIndexPtr;
+		instance->DataUnitsInBuffer -= strlen(resultPtr); //endIndexPtr - startIndexPtr;
+	}
 	//char garbageForBufferEmptying;
-	if(response){
+	else if(response){
 		//failed to find as a straight piece, might be available as circular
 		//start looking from readindex start and search until get "0x00" or run out of buffer (which means it must be in one piece) or match
 		while ((i <= instance->BufferSize) && (!(startIndexFound))){

@@ -88,7 +88,7 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 			//bitbangUARTmessage(temporaryChar);
 			//bitbangUARTmessage("\n\r");
 			//if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
-			if(l11uxx_uart_rx_buffer_current_index<L11UXX_UART_RX_BUFFER_LEN) l11uxx_uart_rx_buffer_current_index++;
+			if(l11uxx_uart_rx_buffer_current_index<(L11UXX_UART_RX_BUFFER_LEN-1)) l11uxx_uart_rx_buffer_current_index++;
 			else bitbangUARTmessage("UARTBUFFERFULL!\n\r"); //dang, we're full
 			rxBusy=0;
 			NVIC_EnableIRQ(UART_IRQn);
