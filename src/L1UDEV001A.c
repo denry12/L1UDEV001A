@@ -28,7 +28,7 @@
 //hwtests
 
 //#include "JDP_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
-//#include "le_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
+#include "le_wifi_creds.h" //NB! You do not have this file. It just overwrites next two defines
 #ifndef WIFI_SSID
 #define WIFI_SSID "4A50DD"
 //#define WIFI_SSID "Test-asus"
@@ -376,26 +376,36 @@ bool esp8266_ESPToLPC(esp8266_instance *instance){
 			return 1; //no data, return
 
 
-	int currentIndex = 0, maxIndex = l11uxx_uart_rx_buffer_current_index;
+
 
 
 	//bitbangUARTmessage("UARTIndexPreClear: ");
 	//bitbangUARTint(l11uxx_uart_rx_buffer_current_index,0,0);
 	//bitbangUARTmessage("\r\n");
 
+
+
+
 	//stop interrupts
-	//NVIC_DisableIRQ(UART_IRQn);
+	NVIC_DisableIRQ(UART_IRQn);
 
+	int maxIndex = l11uxx_uart_rx_buffer_current_index;
 	//copy data out and prep for new data
-	char temporaryBuffer[l11uxx_uart_rx_buffer_current_index];
+	char temporaryBuffer[l11uxx_uart_rx_buffer_current_index+2]; //+2 for extra space just in case
 
-	//memcpy(temporaryBuffer, l11uxx_uart_rx_buffer, l11uxx_uart_rx_buffer_current_index);
-	strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer), l11uxx_uart_rx_buffer_current_index);
+	memcpy(temporaryBuffer, &l11uxx_uart_rx_buffer, l11uxx_uart_rx_buffer_current_index);
+	//strncpy(temporaryBuffer, (&l11uxx_uart_rx_buffer), l11uxx_uart_rx_buffer_current_index); //both appear to work equally well??
 
-	l11uxx_uart_clearRxBuffer();
+	//l11uxx_uart_clearRxBuffer(); <- careful, it fucks with UART interrupts!
+	//l11uxx_uart_rx_buffer_current_index=0;
+	//l11uxx_uart_rx_buffer=0;
+	l11uxx_uart_clearRxBuffer_withoutReadout();
 
 	//re-enable interrupts
-	//NVIC_EnableIRQ(UART_IRQn);
+	NVIC_EnableIRQ(UART_IRQn);
+
+
+	int currentIndex = 0;
 
 	//add the null terminator where it should be.
 	//temporaryBuffer[currentIndex] = 0;
@@ -461,7 +471,9 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 		LCDdatabyte |= ((LCDE   & 0x01) << instance->I2C_pinE_offset);
 		LCDdatabyte |= ((LCDRW  & 0x01) << 1);
 		LCDdatabyte |= ((LCDRS  & 0x01) << 0);
+		delay(1);
 		l11uxx_i2c_sendByte(LCDdatabyte);
+		delay(1);
 		l11uxx_i2c_sendStop();
 		//delay(1);
 		dataInvalid = hd44780_getFromTxBuffer(instance, &LCDMSN, &LCDRS, &LCDRW, &LCDE); //this was at top of while loop but it seemed illogical. How did it even work.

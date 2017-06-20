@@ -577,7 +577,14 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 				l11uxx_uart_init(19200);
 				debugOutput("19200?\n\r");
 
-				if(esp8266_isAlive(esp01) == 0) debugOutput("ESP comm fail!\n\r"); //idk, massive fail
+				//if(esp8266_isAlive(esp01) == 0){
+								//no response, trying smth else
+								//l11uxx_uart_init(300);
+								//debugOutput("300?\n\r");
+								if(esp8266_isAlive(esp01) == 0) debugOutput("ESP comm fail!\n\r"); //idk, massive fail
+				//}
+
+
 			}
 		}
 		printSmallPercent(i2cLCD01dn, 1*100/9);
@@ -586,8 +593,12 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 		printSmallPercent(i2cLCD01dn, 2*100/9);
 
 		esp8266_setUARTMode(esp01, 9600, 8, 3, 0, 0);
+		//esp8266_setUARTMode(esp01, 19200, 8, 3, 0, 0);
+		//esp8266_setUARTMode(esp01, 300, 8, 3, 0, 0);
 		printSmallPercent(i2cLCD01dn, 3*100/9);
 		l11uxx_uart_init(9600);
+		//l11uxx_uart_init(19200);
+		//l11uxx_uart_init(300);
 		printSmallPercent(i2cLCD01dn, 4*100/9);
 		esp8266_isAlive(esp01);
 		printSmallPercent(i2cLCD01dn, 5*100/9);
@@ -610,6 +621,13 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 		bitbangUARTmessage(temporaryString1);
 
 		printSmallPercent(i2cLCD01dn, 9*100/9);
+
+		esp8266_openConnection(esp01, 0, "UDP", "192.168.173.1", 6666); //ip doesn't matter really, just gotta open port
+		//esp8266_openConnection(esp01, 0, "UDP", "10.10.10.171", 6666); //wlan can't go to local lan here, but still gotta open port
+	}
+	if (GPIOGetValue(0, 7)) { //if second button pressed, skipping IP reporting
+
+		//l11uxx_uart_clearRxBuffer(); //if all works, remove this line and see what happens - should remain working
 		esp8266_getOwnIP(esp01, &temporaryString1);
 		bitbangUARTmessage(temporaryString1);
 
@@ -620,11 +638,8 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 		hd44780_lcdcursor(i2cLCD01dn, 8, 0);
 		hd44780_printtext(i2cLCD01dn, temporaryString1);
 		hd44780_printtext(i2cLCD01dn, ":6666");
-
-		esp8266_openConnection(esp01, 0, "UDP", "192.168.173.1", 6666); //ip doesn't matter really, just gotta open port
-		//esp8266_openConnection(esp01, 0, "UDP", "10.10.10.171", 6666); //wlan can't go to local lan here, but still gotta open port
-
 	}
+
 	//"UI" starts here
 	GPIOSetValue(0, 8, 1);
 	while(1){

@@ -249,7 +249,8 @@ int esp8266_sendCommandAndReadResponse(esp8266_instance *instance, char *command
 
 	while(instance->receivedFromESPbuffer->DataUnitsInBuffer < 2){ //deffo not enough data
 		//this should be replaced with check if I have a response in buffer
-		(*instance).getCharFromESP(instance);
+		//(*instance).getCharFromESP(instance);
+		while((*instance).getCharFromESP(instance) == 0);//{ //and if data still keeps on coming
 		retriesDone++;
 		if(retriesDone>=retriesMax) break;
 		bitbangUARTloadingbar(retriesDone, retriesMax-1);
@@ -549,6 +550,8 @@ int esp8266_setUARTMode(esp8266_instance *instance, int baudrate, char bits, cha
 
 	//TODO: make this part universal
 	if(baudrate==9600)strcat(modeConfString,"9600");
+	else if(baudrate==110)strcat(modeConfString,"110");
+	else if(baudrate==300)strcat(modeConfString,"300");
 	else if(baudrate==19200)strcat(modeConfString,"19200");
 	else if(baudrate==115200)strcat(modeConfString,"115200");
 	strcat(modeConfString,",");

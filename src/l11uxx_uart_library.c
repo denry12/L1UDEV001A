@@ -79,38 +79,44 @@ void l11uxx_uart_sendToBuffer(){ //This function drains the HW UART Rx buffer to
 		rxBusy=1;
 		*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index) = LPC_USART->RBR;
 		//LPC_GPIO->CLR[0] = (0x20000); //0_17
-			//debugChar = *(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index);
+		//debugChar = *(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index);
 
-			//bitbangUARTmessage("NewUARTByte: ");
-			//temporaryChar[0] = l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index];
-			//if(temporaryChar[0] == '\n') temporaryChar[0] = 'n';
-			//if(temporaryChar[0] == '\r') temporaryChar[0] = 'r';
-			//bitbangUARTmessage(temporaryChar);
-			//bitbangUARTmessage("\n\r");
-			//if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
-			if(l11uxx_uart_rx_buffer_current_index<(L11UXX_UART_RX_BUFFER_LEN-1)) l11uxx_uart_rx_buffer_current_index++;
-			else bitbangUARTmessage("UARTBUFFERFULL!\n\r"); //dang, we're full
-			rxBusy=0;
-			NVIC_EnableIRQ(UART_IRQn);
-			if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
-				//let's wait, maybe slave is slow
-				//delay(10); //uncomment if delay function available <- please note that 10ms is radical delay even for 9600baud
-			}
+		//bitbangUARTmessage("NewUARTByte: ");
+		//temporaryChar[0] = l11uxx_uart_rx_buffer[l11uxx_uart_rx_buffer_current_index];
+		//if(temporaryChar[0] == '\n') temporaryChar[0] = 'n';
+		//if(temporaryChar[0] == '\r') temporaryChar[0] = 'r';
+		//bitbangUARTmessage(temporaryChar);
+		//bitbangUARTmessage("\n\r");
+		//if(!(*(saveTo2+l11uxx_uart_rx_buffer_current_index)==0))l11uxx_uart_rx_buffer_current_index++; //I don't want array filled with zeros.
+		if(l11uxx_uart_rx_buffer_current_index<(L11UXX_UART_RX_BUFFER_LEN-1)) l11uxx_uart_rx_buffer_current_index++;
+		else bitbangUARTmessage("UARTBUFFERFULL!\n\r"); //dang, we're full
+		rxBusy=0;
+		NVIC_EnableIRQ(UART_IRQn);
+		//if(!((LPC_USART->LSR & 0x01))){ //oh no, are we out of data?
+			//let's wait, maybe slave is slow
+			//delay(10); //uncomment if delay function available <- please note that 10ms is radical delay even for 9600baud
+		//}
 
-		}
+	}
 
 	*(l11uxx_uart_rx_buffer+l11uxx_uart_rx_buffer_current_index+0)=0; //cause I want the string to end here
 
 	return;
 }
 
+void l11uxx_uart_clearRxBuffer_withoutReadout(){
+	l11uxx_uart_rx_buffer_current_index=0;
+	l11uxx_uart_rx_buffer[0]=0;
+	//l11uxx_uart_rx_buffer[1]=0;
+	return;
+}
+
 void l11uxx_uart_clearRxBuffer(){
 	//bitbangUARTmessage("BUFFERCLEAR!\n\r");
 	l11uxx_uart_sendToBuffer();
-	LPC_USART->FCR |= (1<<1); //Rx FIFO reset!
-	l11uxx_uart_rx_buffer_current_index=0;
-	l11uxx_uart_rx_buffer[0]=0;
-	l11uxx_uart_rx_buffer[1]=0;
+	//LPC_USART->FCR |= (1<<1); //Rx FIFO reset!
+	l11uxx_uart_clearRxBuffer_withoutReadout();
+
 	return;
 }
 
@@ -119,6 +125,7 @@ void UART_IRQHandler(void){
 
 	if(rxBusy); //already work happening
 	else l11uxx_uart_sendToBuffer();
+	//l11uxx_uart_sendToBuffer();
 
 	//LPC_GPIO->CLR[0] = (0x20000); //0_17*/
 	//return;
@@ -194,6 +201,8 @@ int l11uxx_uart_init(uint32_t baudrate){
 
 
 	LPC_USART->FCR |= (0x0<<6); //trigger level 0, 1 characters in RX buffer
+
+	LPC_USART->FCR |= (1<<1); //Rx FIFO reset!
 	l11uxx_uart_clearRxBuffer();
 
 	/*static int firstTime=0;
