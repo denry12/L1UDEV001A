@@ -455,8 +455,27 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	uint16_t packetLen = 0;
 	uint16_t bytesReceived = 0;
 	uint16_t i = 0;
+
+	uint16_t millisecsToWaitData = 20;
+	uint16_t millisecsWaited = 0;
+
 	char lengthString[4] = {0, 0, 0, 0}; //fill it with null terminators to avoid waiting for 1066 bytes instead of 10
-	while((*instance).getCharFromESP(instance) == 0); //and if data still keeps on coming
+
+	if((*instance).getCharFromESP(instance) == 0){
+		//some new data incoming
+		while(millisecsWaited <= millisecsToWaitData){
+			if((*instance).getCharFromESP(instance) == 0){
+				//if more coming, reset timeout timer
+				millisecsWaited = 0;
+			} else {
+				//else increment timer
+				millisecsWaited++;
+			}
+
+			delay(1);
+		}
+	}
+
 	char *responsePtr = 0;
 	char responseString[RX_PACKET_CONTENT_MAX_SIZE+10]; //add room for header
 	 responseString[0] = 0;

@@ -93,6 +93,7 @@ bool circularBuffer8_put(circularBuffer_8bit *instance, uint8_t *data){
 		instance->DataUnitsInBuffer++;
 		if(instance->BufferWriteIndex >= instance->BufferSize)
 			instance->BufferWriteIndex = 0; //go circular if necessary
+			instance->Buffer[instance->BufferWriteIndex] = 0; //add null terminator
 	}
 	else {
 		//bitbangUARTmessage("BUFFER FULL!\r\n");

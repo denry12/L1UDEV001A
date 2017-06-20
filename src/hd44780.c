@@ -67,7 +67,7 @@ bool hd44780_addToTxBuffer(hd44780_instance *instance, uint16_t *command){
 	}
 	//else return 1; //catastrophe (can't fit, buffer full)
 	else {
-		bitbangUARTmessage("LCD BUFFER FULL!\r\n");
+		//bitbangUARTmessage("LCD BUFFER FULL!\r\n");
 		while((*instance).handlerFunction(instance) == 0); //empty buffer a bit then
 		return hd44780_addToTxBuffer(instance, &command);
 		//return 0; //and return success
