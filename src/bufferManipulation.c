@@ -199,16 +199,37 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 	bool startIndexFound = 0, endIndexFound = 0; //cause indexes may also be 0
 	response = findBetweenTwoStrings(instance->Buffer+instance->BufferReadIndex, firstString, secondString, resultPtr);
 	//response = 1; //to fake it was not found directly
+
+	if ((instance->BufferReadIndex + strlen(resultPtr) ) >  instance->BufferSize){
+		//found data is out of buffer.
+		response = 1; //so we need to consider it "not as one part in the end"
+	}
+
 	if (!(response)){ //read out from buffer so it is up to date
+
 		//it is known that it is in one part
 		//startIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, firstString);
 		//endIndexPtr = strstr(startIndexPtr, secondString);
 
 		endIndexPtr = (strstr(instance->Buffer+instance->BufferReadIndex, resultPtr));
+		bitbangUARTmessage("DUIB1=");
+		bitbangUARTint(instance->DataUnitsInBuffer,0, 0);
+		bitbangUARTmessage("/");
+		bitbangUARTint(instance->BufferSize,0, 0);
+		bitbangUARTmessage("\r\n");
 		while (endIndexPtr > (instance->Buffer+instance->BufferReadIndex)){
-			instance->BufferReadIndex += 1;
-			instance->DataUnitsInBuffer -= 1;
-			endIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, resultPtr);
+			if (instance->DataUnitsInBuffer == 0){
+				//buffer is empty, do not dare to attempt reading anything
+				return 1;
+			}
+				instance->BufferReadIndex += 1;
+				instance->DataUnitsInBuffer -= 1;
+
+				//bitbangUARTmessage("DUIB1=");
+				//bitbangUARTint(instance->DataUnitsInBuffer,0, 0);
+				//bitbangUARTmessage("\r\n");
+
+				endIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, resultPtr);
 		}
 		instance->BufferReadIndex += strlen(resultPtr);//endIndexPtr - startIndexPtr;
 		instance->DataUnitsInBuffer -= strlen(resultPtr); //endIndexPtr - startIndexPtr;
@@ -305,8 +326,14 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 
 				while (instance->BufferReadIndex > 0){
 					//increment until we roll over (todo: replace with calculation)
+					if(instance->DataUnitsInBuffer == 0) return 1;
 					instance->BufferReadIndex += 1;
 					instance->DataUnitsInBuffer -= 1;
+
+					//bitbangUARTmessage("DUIB2=");
+					//bitbangUARTint(instance->DataUnitsInBuffer,0, 0);
+					//bitbangUARTmessage("\r\n");
+
 					if (instance->BufferReadIndex >= instance->BufferSize) instance->BufferReadIndex = 0; //go circular
 				}
 

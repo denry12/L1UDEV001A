@@ -948,11 +948,11 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 		//got new data
 		instance->rxPacketPointer[instance->rxPacketCount] = &(instance->rxPacketBuffer[instance->rxPacketBufferIndex]);
 
-		bitbangUARTmessage("New data @ ");
-		bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount],0,8);
-		bitbangUARTmessage(";");
-		bitbangUARThex(instance->rxPacketCount,0,8);
-		bitbangUARTmessage("\r\n");
+		//bitbangUARTmessage("New data @ ");
+		//bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount],0,8);
+		//bitbangUARTmessage(";");
+		//bitbangUARThex(instance->rxPacketCount,0,8);
+		//bitbangUARTmessage("\r\n");
 
 		//copy it to packet buffer
 		if(i >= RX_PACKET_CONTENT_MAX_SIZE-1 ) return 1; //getting creepily close.
@@ -1022,9 +1022,9 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	//note that packet format is: "<ID>,<length>,<data>"
 	char *idStartPtr = instance->rxPacketPointer[0];
 
-	bitbangUARTmessage("rxPktPtr ");
-	bitbangUARThex(instance->rxPacketPointer[0],0,8);
-	bitbangUARTmessage("\r\n");
+	//bitbangUARTmessage("rxPktPtr ");
+	//bitbangUARThex(instance->rxPacketPointer[0],0,8);
+	//bitbangUARTmessage("\r\n");
 
 
 	char *idEndPtr = (char*)(strstr((idStartPtr), ",")); //gets first comma, after ID and before length
@@ -1032,12 +1032,12 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	char *lenStartPtr = idEndPtr+1;
 	char *lenEndPtr = (char*)(strstr((lenStartPtr), ":")); //gets the colon, after length and before data
 
-	bitbangUARTmessage("Getdata strncpy ");
-	bitbangUARThex(lengthString,0,8);
-	bitbangUARTmessage(" ");
-	bitbangUARThex(lenStartPtr,0,8);
-	bitbangUARTmessage(" ");
-	bitbangUARThex(lenEndPtr,0,8);
+	//bitbangUARTmessage("Getdata strncpy ");
+	//bitbangUARThex(lengthString,0,8);
+	//bitbangUARTmessage(" ");
+	//bitbangUARThex(lenStartPtr,0,8);
+	//bitbangUARTmessage(" ");
+	//bitbangUARThex(lenEndPtr,0,8);
 
 	if((lenEndPtr == 0)||(lenStartPtr == 0)){
 		//if this goes on, it hardfaults. Must be some broken packet.
@@ -1055,13 +1055,13 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 			instance->rxPacketPointer[i] = instance->rxPacketPointer[i+1];
 			i++;
 		}
-		bitbangUARTmessage("\r\n");
+		//bitbangUARTmessage("\r\n");
 		bitbangUARTmessage("Broken packet!\r\n");
 		return 1;
 	}
 
 	strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
-	bitbangUARTmessage("\r\n");
+	//bitbangUARTmessage("\r\n");
 
 	packetLen = (uint16_t)(atoi(lengthString));
 	*id = (uint8_t)(atoi(idString));
@@ -1072,13 +1072,22 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	char *packetStartPointer = lenEndPtr+1;
 
 
-	while(packetStartPointer[i] != 0){//NB! This line assumes packet may not contain 0x00
+	//bitbangUARTmessage("precopydata:");
+	//bitbangUARTmessage(packetStartPointer);
+	//bitbangUARTmessage("\r\n");
+
+	while((packetStartPointer[i] != 0) || (i<=packetLen)){//NB! This line assumes packet may not contain 0x00
 		if((packetStartPointer + i) > (&instance->rxPacketBuffer[instance->rxPacketBufferSize] )) //going circular
 			packetStartPointer -= (sizeof(instance->rxPacketBuffer[0])  * instance->rxPacketBufferSize); //reduce address by buffer size
 		data[i] = *(packetStartPointer+i);
 		i++;
 	}
-	data[i] = 0; //null terminator! This is necessary because the cycle where it would be added cancels the loop
+	data[packetLen] = 0; //null terminator!
+
+
+	//bitbangUARTmessage("postcopydata:");
+	//bitbangUARTmessage(data);
+	//bitbangUARTmessage("\r\n");
 
 	//bitbangUARTmessage("ESPGET:W TO ");
 	//bitbangUARTint(j,0, 3);
@@ -1092,13 +1101,13 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 
 	//adjust the pointers
 	i = 0;
-	bitbangUARTmessage("i=");
-	bitbangUARTint(i,0, 3);
-	bitbangUARTmessage("\r\n");
+	//bitbangUARTmessage("i=");
+	//bitbangUARTint(i,0, 0);
+	//bitbangUARTmessage("\r\n");
 	while (i < instance->rxPacketCount){
-		bitbangUARTmessage("i=");
-		bitbangUARTint(i,0, 3);
-		bitbangUARTmessage("\r\n");
+		//bitbangUARTmessage("i=");
+		//bitbangUARTint(i,0, 0);
+		//bitbangUARTmessage("\r\n");
 		instance->rxPacketPointer[i] = instance->rxPacketPointer[i+1];
 		i++;
 	}
