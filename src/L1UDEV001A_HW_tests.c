@@ -30,10 +30,11 @@
 //#define WIFI_PASSWD "24681357"
 #endif
 
-void HW_test_debugmessage(char text[]){
+void HW_test_debugmessage(char *message){
 	//comment this out if you do not want to
 	//use UART in HW tests where it is not critical
 	//l11uxx_uart_Send(text);
+	bitbangUARTmessage(message);
 	return;
 }
 
@@ -648,43 +649,47 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 		//get packet and handle LCD accordingly
 		while(esp01->rxPacketCount < 1)esp8266_receiveHandler(esp01); //wait until some data is get
 		//esp8266_sendData(&esp01, 0, 10, "PACKET GET");
-		esp8266_getData(esp01, temporaryString1, &i, &j);
-		//bitbangUARTmessage(temporaryString1);
-		ptrForStrstr = 0;
-		ptrForStrstr = strstr(temporaryString1, "LCDCLR");
-		if(ptrForStrstr){
-			//packet contains LCD clear request
-			hd44780_clear(i2cLCD01up);
-			hd44780_clear(i2cLCD01dn);
-		}
-		ptrForStrstr = 0;
-		ptrForStrstr = strstr(temporaryString1, "LCDCRS:");
-		if(ptrForStrstr){
-			//packet contains LCD cursor location, e.g. "LCDCRS:01,03";
-			strcpy(temporaryString2, ptrForStrstr+7);
-			lcdcursortempX = atoi(temporaryString2);
-			strcpy(temporaryString2, ptrForStrstr+7+3);
-			lcdcursortempY = atoi(temporaryString2);
-			//lcdcursortempY =
-			if(lcdcursortempY<=1) hd44780_lcdcursor(i2cLCD01up, lcdcursortempX, lcdcursortempY);
-			else hd44780_lcdcursor(i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2));
-		}
-		ptrForStrstr = 0;
-		ptrForStrstr = strstr(temporaryString1, "LCDTXT:");
-		if(ptrForStrstr){
-			//packet contains LCD text data
-			if (lcdcursortempY <= 1) hd44780_printtext(i2cLCD01up, (ptrForStrstr+7));
-			else hd44780_printtext(i2cLCD01dn, (ptrForStrstr+7));
-		}
-		ptrForStrstr = 0;
-		ptrForStrstr = strstr(temporaryString1, "LCDRST");
-		if(ptrForStrstr){
-			//packet contains LCD reset request
-			hd44780_init(i2cLCD01up);
-			hd44780_init(i2cLCD01dn);
-			hd44780_clear(i2cLCD01up);
-			hd44780_clear(i2cLCD01dn);
+		if (esp8266_getData(esp01, temporaryString1, &i, &j) == 0) { //data getting was success
+			//bitbangUARTmessage(temporaryString1);
+			ptrForStrstr = 0;
+			ptrForStrstr = strstr(temporaryString1, "LCDCLR");
+			if(ptrForStrstr){
+				//packet contains LCD clear request
+				hd44780_clear(i2cLCD01up);
+				hd44780_clear(i2cLCD01dn);
+			}
+			ptrForStrstr = 0;
+			ptrForStrstr = strstr(temporaryString1, "LCDCRS:");
+			if(ptrForStrstr){
+				//packet contains LCD cursor location, e.g. "LCDCRS:01,03";
+				strcpy(temporaryString2, ptrForStrstr+7);
+				lcdcursortempX = atoi(temporaryString2);
+				strcpy(temporaryString2, ptrForStrstr+7+3);
+				lcdcursortempY = atoi(temporaryString2);
+				//lcdcursortempY =
+				if(lcdcursortempY<=1) hd44780_lcdcursor(i2cLCD01up, lcdcursortempX, lcdcursortempY);
+				else hd44780_lcdcursor(i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2));
+			}
+			ptrForStrstr = 0;
+			ptrForStrstr = strstr(temporaryString1, "LCDTXT:");
+			if(ptrForStrstr){
+				//packet contains LCD text data
+				if (lcdcursortempY <= 1) hd44780_printtext(i2cLCD01up, (ptrForStrstr+7));
+				else hd44780_printtext(i2cLCD01dn, (ptrForStrstr+7));
+				HW_test_debugmessage("Printing: ");
+				HW_test_debugmessage(ptrForStrstr+7);
+				HW_test_debugmessage("\r\n");
+			}
+			ptrForStrstr = 0;
+			ptrForStrstr = strstr(temporaryString1, "LCDRST");
+			if(ptrForStrstr){
+				//packet contains LCD reset request
+				hd44780_init(i2cLCD01up);
+				hd44780_init(i2cLCD01dn);
+				hd44780_clear(i2cLCD01up);
+				hd44780_clear(i2cLCD01dn);
 
+			}
 		}
 	}
 

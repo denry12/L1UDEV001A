@@ -512,7 +512,8 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	charactersFromBuffer[1] = 0;
 	while(i < (packetLen+1)){
 		if (circularBuffer8_get(instance->receivedFromESPbuffer, charactersFromBuffer) == 0)
-			strcat(responseString,charactersFromBuffer);
+			if(charactersFromBuffer[0] == 0) strcat(responseString,'!'); //string is broken
+			else strcat(responseString,charactersFromBuffer);
 		else return 1;
 		i++;
 	}
@@ -536,9 +537,10 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 
 	//TODO: check if lengthstring matches data length, if not, return error
 
-	//esp8266_debugOutput("Getting data:");
+	esp8266_debugOutput("Getting data:");
 	//esp8266_debugOutput(responsePtr);
-	//esp8266_debugOutput("\r\n");
+	esp8266_debugOutput(responseString);
+	esp8266_debugOutput("\r\n");
 
 
 
@@ -946,6 +948,12 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 		//got new data
 		instance->rxPacketPointer[instance->rxPacketCount] = &(instance->rxPacketBuffer[instance->rxPacketBufferIndex]);
 
+		bitbangUARTmessage("New data @ ");
+		bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount],0,8);
+		bitbangUARTmessage(";");
+		bitbangUARThex(instance->rxPacketCount,0,8);
+		bitbangUARTmessage("\r\n");
+
 		//copy it to packet buffer
 		if(i >= RX_PACKET_CONTENT_MAX_SIZE-1 ) return 1; //getting creepily close.
 		while((i <= RX_PACKET_CONTENT_MAX_SIZE-2) && (temporaryString1[i] != 0)){ //NB! This line assumes packet may not contain 0x00
@@ -1013,12 +1021,47 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	//read out oldest packet
 	//note that packet format is: "<ID>,<length>,<data>"
 	char *idStartPtr = instance->rxPacketPointer[0];
+
+	bitbangUARTmessage("rxPktPtr ");
+	bitbangUARThex(instance->rxPacketPointer[0],0,8);
+	bitbangUARTmessage("\r\n");
+
+
 	char *idEndPtr = (char*)(strstr((idStartPtr), ",")); //gets first comma, after ID and before length
 
 	char *lenStartPtr = idEndPtr+1;
 	char *lenEndPtr = (char*)(strstr((lenStartPtr), ":")); //gets the colon, after length and before data
 
+	bitbangUARTmessage("Getdata strncpy ");
+	bitbangUARThex(lengthString,0,8);
+	bitbangUARTmessage(" ");
+	bitbangUARThex(lenStartPtr,0,8);
+	bitbangUARTmessage(" ");
+	bitbangUARThex(lenEndPtr,0,8);
+
+	if((lenEndPtr == 0)||(lenStartPtr == 0)){
+		//if this goes on, it hardfaults. Must be some broken packet.
+		//also gotta "clear" this packet, otherwise I am stuck in endless loop
+
+		instance->rxPacketCount--; //make sure everyone knows packet was read out
+		//bitbangUARTmessage("Packet read out. New rxPacketCount: ");
+		//bitbangUARTint(instance->rxPacketCount,0,2);
+		//bitbangUARTmessage("\r\n");
+
+
+		//adjust the pointers
+		i = 0;
+		while (i < instance->rxPacketCount){
+			instance->rxPacketPointer[i] = instance->rxPacketPointer[i+1];
+			i++;
+		}
+		bitbangUARTmessage("\r\n");
+		bitbangUARTmessage("Broken packet!\r\n");
+		return 1;
+	}
+
 	strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
+	bitbangUARTmessage("\r\n");
 
 	packetLen = (uint16_t)(atoi(lengthString));
 	*id = (uint8_t)(atoi(idString));
@@ -1037,6 +1080,10 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	}
 	data[i] = 0; //null terminator! This is necessary because the cycle where it would be added cancels the loop
 
+	//bitbangUARTmessage("ESPGET:W TO ");
+	//bitbangUARTint(j,0, 3);
+	//bitbangUARTmessage("\r\n");
+
 	instance->rxPacketCount--; //make sure everyone knows packet was read out
 	//bitbangUARTmessage("Packet read out. New rxPacketCount: ");
 	//bitbangUARTint(instance->rxPacketCount,0,2);
@@ -1045,7 +1092,13 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 
 	//adjust the pointers
 	i = 0;
+	bitbangUARTmessage("i=");
+	bitbangUARTint(i,0, 3);
+	bitbangUARTmessage("\r\n");
 	while (i < instance->rxPacketCount){
+		bitbangUARTmessage("i=");
+		bitbangUARTint(i,0, 3);
+		bitbangUARTmessage("\r\n");
 		instance->rxPacketPointer[i] = instance->rxPacketPointer[i+1];
 		i++;
 	}

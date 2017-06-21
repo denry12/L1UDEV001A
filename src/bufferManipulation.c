@@ -212,6 +212,7 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 		}
 		instance->BufferReadIndex += strlen(resultPtr);//endIndexPtr - startIndexPtr;
 		instance->DataUnitsInBuffer -= strlen(resultPtr); //endIndexPtr - startIndexPtr;
+		return response; //found string
 	}
 	//char garbageForBufferEmptying;
 	else if(response){
@@ -287,7 +288,40 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 			return 0; //all success
 		}
 
-		return response;
+		//return response;
 	}
-	return response; //found string
+
+	//failed to find it starting at end of buffer and continuing at start, however it might be in one piece after buffer rollover
+	//is there potential for it (do we have enough characters?)
+	if((instance->BufferReadIndex + instance->DataUnitsInBuffer) > instance->BufferSize){
+		//looks like it is possible (e.g. 500 + 1 = 501 (buffer[0]))
+		response = findBetweenTwoStrings(instance->Buffer, firstString, secondString, resultPtr);
+			if (!(response)){ //read out from buffer so it is up to date
+				//it is known that it is in one part
+				//startIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, firstString);
+				//endIndexPtr = strstr(startIndexPtr, secondString);
+
+				//endIndexPtr = (strstr(instance->Buffer, resultPtr));
+
+				while (instance->BufferReadIndex > 0){
+					//increment until we roll over (todo: replace with calculation)
+					instance->BufferReadIndex += 1;
+					instance->DataUnitsInBuffer -= 1;
+					if (instance->BufferReadIndex >= instance->BufferSize) instance->BufferReadIndex = 0; //go circular
+				}
+
+				endIndexPtr = (strstr(instance->Buffer+instance->BufferReadIndex, resultPtr));
+				while (endIndexPtr > (instance->Buffer+instance->BufferReadIndex)){
+					instance->BufferReadIndex += 1;
+					instance->DataUnitsInBuffer -= 1;
+					endIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, resultPtr);
+				}
+				instance->BufferReadIndex += strlen(resultPtr);//endIndexPtr - startIndexPtr;
+				instance->DataUnitsInBuffer -= strlen(resultPtr); //endIndexPtr - startIndexPtr;
+				return response; //found string
+			}
+	}
+
+
+	return 1; //if it got this far, there just is nothing there.
 }
