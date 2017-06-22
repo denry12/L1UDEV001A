@@ -511,10 +511,13 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 
 	charactersFromBuffer[1] = 0;
 	while(i < (packetLen+1)){
-		if (circularBuffer8_get(instance->receivedFromESPbuffer, charactersFromBuffer) == 0)
-			if(charactersFromBuffer[0] == 0) strcat(responseString,'!'); //string is broken
-			else strcat(responseString,charactersFromBuffer);
-		else return 1;
+		if (circularBuffer8_get(instance->receivedFromESPbuffer, charactersFromBuffer) == 0){
+
+			charactersFromBuffer[1] = 0; //grr it shouldn't be necessary!?
+			//if(charactersFromBuffer[0] == 0) strcat(responseString,'!'); //string is broken
+			//else
+			strcat(responseString,charactersFromBuffer);
+		}	else return 1;
 		i++;
 	}
 
@@ -537,19 +540,24 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 
 	//TODO: check if lengthstring matches data length, if not, return error
 
-	esp8266_debugOutput("Getting data:");
+	esp8266_debugOutput("1)Getting data:");
 	//esp8266_debugOutput(responsePtr);
 	esp8266_debugOutput(responseString);
-	esp8266_debugOutput("\r\n");
+	esp8266_debugOutput(".\r\n");
 
 
 
+	bitbangUARTmessage("2)RxPktmemmove:");
+	bitbangUARThex(response,0,8);
+	bitbangUARTmessage(" ");
+	bitbangUARThex(responseString,0,8);
+	bitbangUARTmessage(" ");
+	bitbangUARTint(strlen(responseString),0,0);
 
 	//memmove(response, responsePtr, strlen(responsePtr)+1);
 	memmove(response, responseString, strlen(responseString));
 
-
-
+	bitbangUARTmessage(".\r\n");
 	return 0; //success
 }
 
@@ -944,15 +952,17 @@ int esp8266_sendData(esp8266_instance *instance, uint8_t id, int length, char *d
 bool esp8266_receiveHandler(esp8266_instance *instance){
 	int i=0;
 	char temporaryString1[RX_PACKET_CONTENT_MAX_SIZE];
+	//bitbangUARTmessage("!");
 	if (esp8266_checkForRxPacket(instance, (temporaryString1)) == 0){
 		//got new data
+		//bitbangUARTmessage("&");
 		instance->rxPacketPointer[instance->rxPacketCount] = &(instance->rxPacketBuffer[instance->rxPacketBufferIndex]);
 
-		//bitbangUARTmessage("New data @ ");
-		//bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount],0,8);
+		bitbangUARTmessage("New data to be added@");
+		bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount],0,8);
 		//bitbangUARTmessage(";");
-		//bitbangUARThex(instance->rxPacketCount,0,8);
-		//bitbangUARTmessage("\r\n");
+		//bitbangUARTint(instance->rxPacketCount,0,0);
+		bitbangUARTmessage(".\r\n");
 
 		//copy it to packet buffer
 		if(i >= RX_PACKET_CONTENT_MAX_SIZE-1 ) return 1; //getting creepily close.
@@ -975,11 +985,13 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 
 		instance->rxPacketCount++;
 
-		//bitbangUARTmessage("Packet added to buffer. New rxPacketCount: ");
-		//bitbangUARTint(instance->rxPacketCount,0,2);
-		//bitbangUARTmessage("\r\n");
+		bitbangUARTmessage("New data@");
+		bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount-1],0,8);
+		bitbangUARTmessage(";");
+		bitbangUARTint(instance->rxPacketCount,0,0);
+		bitbangUARTmessage(".\r\n");
 	}
-
+	//bitbangUARTmessage("'");
 	return 0; //is OK
 }
 
@@ -1039,14 +1051,26 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	//bitbangUARTmessage(" ");
 	//bitbangUARThex(lenEndPtr,0,8);
 
+	bitbangUARTmessage("PktBuffInd:");
+	bitbangUARTint(instance->rxPacketBufferIndex,0,0);
+	bitbangUARTmessage(".\r\n");
+
 	if((lenEndPtr == 0)||(lenStartPtr == 0)){
 		//if this goes on, it hardfaults. Must be some broken packet.
 		//also gotta "clear" this packet, otherwise I am stuck in endless loop
 
+		if(lenEndPtr == 0) bitbangUARTmessage("Broken packet(end)!\r\n");
+		if(lenStartPtr == 0) bitbangUARTmessage("Broken packet(start)!\r\n");
+
+
+		bitbangUARTmessage("Reducing packet count. Prev:");
+		bitbangUARTint(instance->rxPacketCount,0,1);
+
 		instance->rxPacketCount--; //make sure everyone knows packet was read out
-		//bitbangUARTmessage("Packet read out. New rxPacketCount: ");
-		//bitbangUARTint(instance->rxPacketCount,0,2);
-		//bitbangUARTmessage("\r\n");
+
+		bitbangUARTmessage(";now:");
+		bitbangUARTint(instance->rxPacketCount,0,1);
+		bitbangUARTmessage("\r\n");
 
 
 		//adjust the pointers
@@ -1054,9 +1078,10 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 		while (i < instance->rxPacketCount){
 			instance->rxPacketPointer[i] = instance->rxPacketPointer[i+1];
 			i++;
+			bitbangUARTmessage("BrokenPktAdjust.\r\n");
 		}
 		//bitbangUARTmessage("\r\n");
-		bitbangUARTmessage("Broken packet!\r\n");
+
 		return 1;
 	}
 
@@ -1072,9 +1097,9 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	char *packetStartPointer = lenEndPtr+1;
 
 
-	//bitbangUARTmessage("precopydata:");
-	//bitbangUARTmessage(packetStartPointer);
-	//bitbangUARTmessage("\r\n");
+	bitbangUARTmessage("3)precopydata:");
+	bitbangUARTmessage(packetStartPointer);
+	bitbangUARTmessage(".\r\n");
 
 	while((packetStartPointer[i] != 0) || (i<=packetLen)){//NB! This line assumes packet may not contain 0x00
 		if((packetStartPointer + i) > (&instance->rxPacketBuffer[instance->rxPacketBufferSize] )) //going circular
@@ -1085,9 +1110,9 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	data[packetLen] = 0; //null terminator!
 
 
-	//bitbangUARTmessage("postcopydata:");
-	//bitbangUARTmessage(data);
-	//bitbangUARTmessage("\r\n");
+	bitbangUARTmessage("4)postcopydata:");
+	bitbangUARTmessage(data);
+	bitbangUARTmessage(".\r\n");
 
 	//bitbangUARTmessage("ESPGET:W TO ");
 	//bitbangUARTint(j,0, 3);

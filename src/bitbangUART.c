@@ -33,6 +33,7 @@ void bitbangUARTbyte(int letter){ //blasts out data @ pin 25 (P2_10) at staggeri
 		firstTime=0;
 	}
 
+
 	GPIOSetValue(bitbangUARTport, bitbangUARTbit, 0); // start bit
 	delay_us(uartdelayus);
 
@@ -62,6 +63,7 @@ void bitbangUARTbyte(int letter){ //blasts out data @ pin 25 (P2_10) at staggeri
 
 	GPIOSetValue(bitbangUARTport, bitbangUARTbit, 1); // stop bit
 	delay_us(uartdelayus);
+
 
 
 	return;

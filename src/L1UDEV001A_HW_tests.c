@@ -626,11 +626,16 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 		esp8266_openConnection(esp01, 0, "UDP", "192.168.173.1", 6666); //ip doesn't matter really, just gotta open port
 		//esp8266_openConnection(esp01, 0, "UDP", "10.10.10.171", 6666); //wlan can't go to local lan here, but still gotta open port
 	}
+
+	//can release button now
+	GPIOSetValue(0, 8, 1); //debugled on 16B0_1 OFF
+
 	if (GPIOGetValue(0, 7)) { //if second button pressed, skipping IP reporting
 
 		//l11uxx_uart_clearRxBuffer(); //if all works, remove this line and see what happens - should remain working
 		esp8266_getOwnIP(esp01, &temporaryString1);
 		bitbangUARTmessage(temporaryString1);
+		bitbangUARTmessage("\r\n");
 
 		hd44780_clear(i2cLCD01up);
 		hd44780_clear(i2cLCD01dn);
@@ -642,14 +647,19 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 	}
 
 	//"UI" starts here
-	GPIOSetValue(0, 8, 1);
 	while(1){
 		temporaryString1[0] = 0;
 		temporaryString1[1] = 0;
 		//get packet and handle LCD accordingly
+
 		while(esp01->rxPacketCount < 1)esp8266_receiveHandler(esp01); //wait until some data is get
 		//esp8266_sendData(&esp01, 0, 10, "PACKET GET");
+
 		if (esp8266_getData(esp01, temporaryString1, &i, &j) == 0) { //data getting was success
+
+			//no longer waiting for packet, now am busy
+			GPIOSetValue(0, 8, 0); //debugled on 16B0_1 ON
+
 			//bitbangUARTmessage(temporaryString1);
 			ptrForStrstr = 0;
 			ptrForStrstr = strstr(temporaryString1, "LCDCLR");
@@ -667,18 +677,18 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 				strcpy(temporaryString2, ptrForStrstr+7+3);
 				lcdcursortempY = atoi(temporaryString2);
 				//lcdcursortempY =
-				if(lcdcursortempY<=1) hd44780_lcdcursor(i2cLCD01up, lcdcursortempX, lcdcursortempY);
-				else hd44780_lcdcursor(i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2));
+				//if(lcdcursortempY<=1) hd44780_lcdcursor(i2cLCD01up, lcdcursortempX, lcdcursortempY); //uncomment to make LCD work
+				//else hd44780_lcdcursor(i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2)); //uncomment to make LCD work
 			}
 			ptrForStrstr = 0;
 			ptrForStrstr = strstr(temporaryString1, "LCDTXT:");
 			if(ptrForStrstr){
 				//packet contains LCD text data
-				if (lcdcursortempY <= 1) hd44780_printtext(i2cLCD01up, (ptrForStrstr+7));
-				else hd44780_printtext(i2cLCD01dn, (ptrForStrstr+7));
-				HW_test_debugmessage("Printing: ");
+				//if (lcdcursortempY <= 1) hd44780_printtext(i2cLCD01up, (ptrForStrstr+7)); //uncomment to make LCD work
+				//else hd44780_printtext(i2cLCD01dn, (ptrForStrstr+7)); //uncomment to make LCD work
+				HW_test_debugmessage("5)Printing:");
 				HW_test_debugmessage(ptrForStrstr+7);
-				HW_test_debugmessage("\r\n");
+				HW_test_debugmessage(".\r\n");
 			}
 			ptrForStrstr = 0;
 			ptrForStrstr = strstr(temporaryString1, "LCDRST");
@@ -690,6 +700,9 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 				hd44780_clear(i2cLCD01dn);
 
 			}
+
+			//being busy is done
+			GPIOSetValue(0, 8, 1); //debugled on 16B0_1 OFF
 		}
 	}
 
