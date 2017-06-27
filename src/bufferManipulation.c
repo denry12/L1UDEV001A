@@ -400,3 +400,57 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 
 	return 1; //if it got this far, there just is nothing there.
 }
+
+
+void dumpbuffer_8(circularBuffer_8bit *instance, bool validonly){
+	char tinystring[2];
+	tinystring[1] = 0;
+	int i, j;
+	i = 0;
+	if (validonly){
+		j = instance->DataUnitsInBuffer;
+		i = instance->BufferReadIndex;
+		while(j){
+			if(i >= instance->BufferSize){
+				i = 0;
+				bitbangUARTmessage("\n"); //rolled over
+			}
+			tinystring[0] = instance->Buffer[i];
+			bitbangUARTmessage(tinystring);
+			j--;
+			i++;
+		}
+	} else {
+		while (i <= instance->BufferSize){
+			tinystring[0] = instance->Buffer[i];
+			bitbangUARTmessage(tinystring);
+			i++;
+		}
+
+	}
+	bitbangUARTmessage("\r\n");
+	return;
+}
+
+void buffertester_8(){
+	uint8_t testbufferData[20+2]; //nb, change this in init too //not sure whether I need that +2. Hopefully not
+	circularBuffer_8bit testbuffer;
+	circularBuffer8_init(&testbuffer, 20, &testbufferData);
+	char temporarystring[20];
+	char *pointer;
+	bool result;
+	while(1){
+		//while(circularBuffer8_put_string(&testbuffer, ":HI;qwerty") == 0); //fill while can
+		circularBuffer8_put_string(&testbuffer, ":HI;9876543210");
+		result = findBetweenTwoStrings_circularBuffer(&testbuffer, ':', ';', &pointer);
+		if (!(result)){
+			bitbangUARTmessage("Found:");
+			bitbangUARTmessage(&(pointer));
+			bitbangUARTmessage(".\r\n");
+		} else {
+			bitbangUARTmessage("Failed to find.\r\n");
+		}
+		dumpbuffer_8(&testbuffer, 1);
+		while(circularBuffer8_get(&testbuffer, temporarystring) == 0); //clear out the buffer
+	}
+}
