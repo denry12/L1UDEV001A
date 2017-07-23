@@ -484,33 +484,36 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	 responseString[3] = 0;
 	 responseString[4] = 0;
 	 responseString[5] = 0;
+	 char *responseData;
 	char *lenStartPtr = 0;
 	char *lenEndPtr = 0;
 	char charactersFromBuffer[2];
 	//char *responseEndPtr = 0;
 	if ((findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, "+IPD,", ":", responseString))) return 1; //no data :' (
-	//if (instance->receivedFromESPbuffer->DataUnitsInBuffer <= 0) return 1; //DEFINITELY no data, as previous can fail
+	//responsestring contains "<id>,<len>"
+	strcat(responseString,":"); //because it is one of the limiter-markers, it doesn't come along
 
 	lenStartPtr = strstr((responseString), ","); //gets first comma from "<id>,<len>:"
 	lenStartPtr = lenStartPtr+1; //this sets "lenStartPtr" just after first "," in "<id>,<len>:"
-	//lenStartPtr = strstr((lenStartPtr+1), ","); //gets second comma from "+IPD,<id>,"
-	//lenStartPtr += 1; //go past the second comma, this is where length actually starts
 	//lenEndPtr = strstr(lenStartPtr, ":");
 
 	//and last protection prior to strncpy
 	//if(!(lenStartPtr) || (!(lenEndPtr))) return 1;
 
-	//strncpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
 	strcpy(lengthString, lenStartPtr);
+
+	//memcpy(lengthString, lenStartPtr, lenEndPtr-lenStartPtr);
+	//lengthString [(lenEndPtr - lenStartPtr)] = 0; //add null terminator
+
 	//if ((findBetweenTwoStrings_circularBuffer(instance->receivedFromESPbuffer, ",", ":", lengthString)))
 		//return 1; //find lengthstring
 	packetLen = atoi(lengthString);
 
 	//at this point, "responseString" has only "<id>,<len>"
-	//so gotta add dataLen+1 bytes. +i cause colon
+	//so gotta add dataLen amount of bytes
 
 	charactersFromBuffer[1] = 0;
-	while(i < (packetLen+1)){
+	while(i < (packetLen)){
 		if (circularBuffer8_get(instance->receivedFromESPbuffer, charactersFromBuffer) == 0){
 
 			charactersFromBuffer[1] = 0; //grr it shouldn't be necessary!?
@@ -540,10 +543,10 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 
 	//TODO: check if lengthstring matches data length, if not, return error
 
-	esp8266_debugOutput("1)Getting data:");
+	bitbangUARTmessage("1)Getting data:");
 	//esp8266_debugOutput(responsePtr);
-	esp8266_debugOutput(responseString);
-	esp8266_debugOutput(".\r\n");
+	bitbangUARTmessage(responseString);
+	bitbangUARTmessage(".\r\n");
 
 
 
@@ -553,11 +556,16 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 	bitbangUARThex(responseString,0,8);
 	bitbangUARTmessage(" ");
 	bitbangUARTint(strlen(responseString),0,0);
+	bitbangUARTmessage(".\r\n");
 
 	//memmove(response, responsePtr, strlen(responsePtr)+1);
-	memmove(response, responseString, strlen(responseString));
+	//memmove(response, responseString, strlen(responseString)); //no wanna use memmove cause doesn't add 0 terminator
+	strcpy(response, responseString);
 
+	bitbangUARTmessage("2.2)PostStrCpy:");
+	bitbangUARTmessage(response);
 	bitbangUARTmessage(".\r\n");
+
 	return 0; //success
 }
 
@@ -956,6 +964,10 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 	if (esp8266_checkForRxPacket(instance, (temporaryString1)) == 0){
 		//got new data
 		//bitbangUARTmessage("&");
+
+
+
+
 		instance->rxPacketPointer[instance->rxPacketCount] = &(instance->rxPacketBuffer[instance->rxPacketBufferIndex]);
 
 		bitbangUARTmessage("New data to be added@");
@@ -966,6 +978,12 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 
 		//copy it to packet buffer
 		if(i >= RX_PACKET_CONTENT_MAX_SIZE-1 ) return 1; //getting creepily close.
+
+		bitbangUARTmessage("2.3)New data is:");
+		bitbangUARTmessage(temporaryString1);
+		bitbangUARTmessage(".\r\n");
+
+		//after this is flaw
 		while((i <= RX_PACKET_CONTENT_MAX_SIZE-2) && (temporaryString1[i] != 0)){ //NB! This line assumes packet may not contain 0x00
 
 			if (i == (RX_PACKET_CONTENT_MAX_SIZE-1)){
@@ -978,18 +996,29 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 			i++;
 
 			//if need to go circular
-			if(instance->rxPacketBufferIndex > instance->rxPacketBufferSize) instance->rxPacketBufferIndex = 0;
+			if(instance->rxPacketBufferIndex >= instance->rxPacketBufferSize) instance->rxPacketBufferIndex = 0;
 		}
+		//BEFORE THIS IS FLAW
+
+		bitbangUARTmessage("2.4)New data after move:");
+		bitbangUARTmessage(instance->rxPacketPointer[instance->rxPacketCount]);
+		bitbangUARTmessage(".\r\n");
+
 		instance->rxPacketBuffer[instance->rxPacketBufferIndex] = 0; //add null terminator
 		instance->rxPacketBufferIndex++;
 
 		instance->rxPacketCount++;
+
+
 
 		bitbangUARTmessage("New data@");
 		bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount-1],0,8);
 		bitbangUARTmessage(";");
 		bitbangUARTint(instance->rxPacketCount,0,0);
 		bitbangUARTmessage(".\r\n");
+
+
+
 	}
 	//bitbangUARTmessage("'");
 	return 0; //is OK
@@ -1033,6 +1062,10 @@ int esp8266_getData(esp8266_instance *instance, char *data, uint16_t *length, ui
 	//read out oldest packet
 	//note that packet format is: "<ID>,<length>,<data>"
 	char *idStartPtr = instance->rxPacketPointer[0];
+
+	bitbangUARTmessage("2.5)getData-data:");
+	bitbangUARTmessage(idStartPtr);
+	bitbangUARTmessage(".\r\n");
 
 	//bitbangUARTmessage("rxPktPtr ");
 	//bitbangUARThex(instance->rxPacketPointer[0],0,8);

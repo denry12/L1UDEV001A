@@ -450,6 +450,7 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 
 		//got a packet to send
 		l11uxx_i2c_sendStart();
+		delay(1);
 		LCDdatabyte = 0;
 		l11uxx_i2c_sendAddr(instance->I2C_addr, 0);
 
@@ -466,7 +467,7 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 		}*/
 
 
-
+		delay(1);
 		LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
 		LCDdatabyte |= ((LCDE   & 0x01) << instance->I2C_pinE_offset);
 		LCDdatabyte |= ((LCDRW  & 0x01) << 1);
@@ -551,7 +552,7 @@ int main(void) {
 	//if( setupClocking(16000000, 48000000) ) while (1); //failed to set clock. Lock MCU
 	if( setupClocking(0, 48000000) ) while (1); //failed to set clock. Lock MCU
 
-	buffertester_8(); //does not return
+	//buffertester_8(); //does not return
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
 	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 2); //works well for 320x240rgblcd & ext flash & nokiaLCD
@@ -756,8 +757,6 @@ int main(void) {
 	ili9341_handler(&iliLCD01);
 	while(1); //I don't wanna continue
 */
-
-	buffertester_8(); //does not return
 
 	uint8_t espRxBufferData[RX_BUFFER_SIZE+2]; //nb, change this in init too //not sure whether I need that +2. Hopefully not
 	circularBuffer_8bit espRxBuffer;
