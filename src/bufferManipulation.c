@@ -10,6 +10,10 @@
 #include <stdbool.h>
 #include "bufferManipulation.h"
 
+
+//#define FBTSCB_BBUART //to enable bitbang debug messages from findbetweentwostrings_circularbuffer function
+
+
 bool circularBuffer16_put(circularBuffer_16bit *instance, uint16_t *data){
 	if(instance->DataUnitsInBuffer < (instance->BufferSize - 2)){ //verify that there is room (and to spare)
 		instance->Buffer[instance->BufferWriteIndex] = (uint16_t)(data);
@@ -85,15 +89,16 @@ bool circularBuffer16_init(circularBuffer_16bit *instance, uint16_t bufferLength
 
 bool circularBuffer8_put(circularBuffer_8bit *instance, uint8_t *data){
 
-	char dataToPut = data;
+	char dataToPut = (char)data;
 	if(instance->DataUnitsInBuffer < (instance->BufferSize - 2)){ //verify that there is room (and to spare)
 		instance->Buffer[instance->BufferWriteIndex] = dataToPut;
 		instance->BufferWriteIndex++;
 		instance->Buffer[instance->BufferWriteIndex] = 0; //add null terminator
 		instance->DataUnitsInBuffer++;
-		if(instance->BufferWriteIndex >= instance->BufferSize)
+		if(instance->BufferWriteIndex >= instance->BufferSize){
 			instance->BufferWriteIndex = 0; //go circular if necessary
 			instance->Buffer[instance->BufferWriteIndex] = 0; //add null terminator
+		}
 	}
 	else {
 		//bitbangUARTmessage("BUFFER FULL!\r\n");
@@ -179,6 +184,8 @@ bool findBetweenTwoStrings(char *searchString, char *firstString, char *secondSt
 	return 0; //all well
 }
 
+//if called for "data:ABCDEF;" with firststring as "data:" and "secondstring" as ";", will return "ABCDEF" to resultPtr
+//and followingly "reads" the buffer up to that point as if it was just read out // NB, give strings between " chars, not '.
 bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *firstString, char *secondString, char *resultPtr){
 	// this function searches for string first as an entire (via other function), then
 	// looks for first part after read index - if at least one character found, allows roll
@@ -193,12 +200,14 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 	uint16_t i = instance->BufferReadIndex;
 	uint16_t firstStringIndex = 0;  //todo: merge these two into one as "stringindex"
 	uint16_t secondStringIndex; //todo: merge these two into one as "stringindex"
-	uint16_t startIndex = 0, endIndex = 0; //these hold bufferinstance actual buffer indexes
-	uint16_t *startIndexPtr = 0, *endIndexPtr = 0; //these are used only when response in one piece (not circular)
+	uint16_t startIndex = 0, endIndex = 0, initialReadIndex = instance->BufferReadIndex; //these hold bufferinstance actual buffer indexes
+	uint8_t *startIndexPtr = 0, *endIndexPtr = 0; //these are used only when response in one piece (not circular)
 	uint16_t lengthOfResult = 0;
 	bool startIndexFound = 0, endIndexFound = 0; //cause indexes may also be 0
+	bool goneCircular = 0; //to verify we don't remain endlessly looping
 	response = findBetweenTwoStrings(instance->Buffer+instance->BufferReadIndex, firstString, secondString, resultPtr);
 	//response = 1; //to fake it was not found directly
+
 
 	if ((instance->BufferReadIndex + strlen(resultPtr) ) >  instance->BufferSize){
 		//found data is out of buffer.
@@ -206,65 +215,66 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 	}
 
 	if (!(response)){ //read out from buffer so it is up to date
-		bitbangUARTmessage("Buff:OnePart1\r\n");
 		//it is known that it is in one part
-		//startIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, firstString);
-		//endIndexPtr = strstr(startIndexPtr, secondString);
-
 		endIndexPtr = (strstr(instance->Buffer+instance->BufferReadIndex, resultPtr));
+		#ifdef FBTSCB_BBUART
+		bitbangUARTmessage("Buff:OnePart1\r\n");
 		bitbangUARTmessage("DUIB1=");
 		bitbangUARTint(instance->DataUnitsInBuffer,0, 0);
 		bitbangUARTmessage("/");
 		bitbangUARTint(instance->BufferSize,0, 0);
 		bitbangUARTmessage("\r\n");
+		#endif
+
+
+
+
 		while (endIndexPtr > (instance->Buffer+instance->BufferReadIndex)){
 			if (instance->DataUnitsInBuffer == 0){
 				//buffer is empty, do not dare to attempt reading anything
 				return 1;
 			}
-				instance->BufferReadIndex += 1;
-				instance->DataUnitsInBuffer -= 1;
+			instance->BufferReadIndex += 1;
+			instance->DataUnitsInBuffer -= 1;
 
-				//bitbangUARTmessage("DUIB1=");
-				//bitbangUARTint(instance->DataUnitsInBuffer,0, 0);
-				//bitbangUARTmessage("\r\n");
+			//bitbangUARTmessage("DUIB1=");
+			//bitbangUARTint(instance->DataUnitsInBuffer,0, 0);
+			//bitbangUARTmessage("\r\n");
 
 				endIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, resultPtr);
 		}
-		instance->BufferReadIndex += strlen(resultPtr);//endIndexPtr - startIndexPtr;
-		instance->DataUnitsInBuffer -= strlen(resultPtr); //endIndexPtr - startIndexPtr;
+		instance->BufferReadIndex += strlen(resultPtr);
+		instance->DataUnitsInBuffer -= strlen(resultPtr);
+		instance->BufferReadIndex += strlen(secondString);
+		instance->DataUnitsInBuffer -= strlen(secondString);
+		if(instance->BufferReadIndex >= instance->BufferSize) instance->BufferReadIndex -= instance->BufferSize;
 		return response; //found string
 	}
-	//char garbageForBufferEmptying;
 
 
 
-
-
-
-
-
-
-
-
-
+	// at this point "i == instance->BufferReadIndex;"
 	else if(response){
 		//failed to find as a straight piece, might be available as circular
 		//start looking from readindex start and search until get "0x00" or run out of buffer (which means it must be in one piece) or match
 		while ((i <= instance->BufferSize) && (!(startIndexFound))){
-			if(instance->Buffer[i] == 0) return 1; //not found, end  of string found instead
-			else if (instance->Buffer[i] == firstString[firstStringIndex]) { //first correct character found, continue
+			if(instance->Buffer[i] == 0){ //not found, end  of string found instead
+				if(i == instance->BufferReadIndex) //but only consider this if not the first character looked at cause rarely we start at the null terminator of last string
+					return 1;
+			}
+			else if (instance->Buffer[i] == (char)(firstString[firstStringIndex])) { //first correct character found, continue
 				//now it is allowed to break string
-				//firstStringIndex++;
-				while(instance->Buffer[i] == firstString[firstStringIndex]){
+				while(instance->Buffer[i] == (char)(firstString[firstStringIndex])){
 					i++;
 					if(i >= instance->BufferSize) i = 0; //necessary to go circular
 					firstStringIndex++;
 				}
-				if(firstString[firstStringIndex] == 0){
+				if((char)(firstString[firstStringIndex]) == 0){
 					//firstString found, everything OK
-					startIndex = i - 1;
+					startIndex = i;
 					startIndexFound = 1;
+					i--; //this is necessary, otherwise we will increment i soon too much before entering next loop
+					//not optimal but... sue me.
 				}
 			} else {
 				//not end of string, not correct character
@@ -272,13 +282,17 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 			}
 			i++;
 		}
-		secondStringIndex = 0;
 		while (!(endIndexFound) && (startIndexFound)){
-			if(i >= instance->BufferSize) i = 0; //necessary to go circular
-			//else if(instance->Buffer[i] == 0) return 1; //not found, end  of string found instead
-			else if(instance->Buffer[i] == secondString[secondStringIndex]) {
+			if(i >= instance->BufferSize){ //necessary to go circular
+				if (goneCircular) { // it is not allowed to go circular twice, otherwise we end up in endless loop.
+					return 1; // make statement that no string was found.
+				}
+				i = 0;
+				goneCircular = 1;
+			}
+
+			if(instance->Buffer[i] == secondString[secondStringIndex]) {
 				while(instance->Buffer[i] == secondString[secondStringIndex]){//correct character found, continue
-					endIndex = i;
 					//now it is allowed to break string
 					if(i >= instance->BufferSize) i = 0; //necessary to go circular
 					i++;
@@ -286,13 +300,15 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 				}
 				if(secondString[secondStringIndex] == 0){
 					//secondString found, everything OK
-					//endIndex = i;
+					endIndex = i - 1; //-1 cause currently we are at first char of "secondString"
+					if(endIndex < strlen(secondString)) endIndex += instance->BufferSize;
+					endIndex -= strlen(secondString);
 					endIndexFound = 1;
 					break;
 				}
 			} else {
 				//not end of string, not correct character
-				if(endIndexFound == 0) firstStringIndex = 0;
+				secondStringIndex = 0; //To start search again from beginning
 			}
 
 
@@ -301,11 +317,14 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 
 
 
-		if(endIndex && startIndex){ //both are nicely found
-			bitbangUARTmessage("!!!!!!Buff:Twopart;SI");
-			if (endIndex > startIndex) lengthOfResult = endIndex - startIndex;
-			else lengthOfResult = instance->BufferSize + endIndex - startIndex;
+		if(endIndexFound && startIndexFound){ //both are nicely found
 
+			if (endIndex > startIndex) lengthOfResult = (endIndex+1) - startIndex; // did not have rollover
+			else lengthOfResult = instance->BufferSize + (endIndex+1) - startIndex; // did have rollover (went circular)
+			//+1 for endindex cause it also contains data
+
+			#ifdef FBTSCB_BBUART
+			bitbangUARTmessage("!!!!!!Buff:Twopart;SI");
 			bitbangUARTint(startIndex,0,0);
 			bitbangUARTmessage(";EI");
 			bitbangUARTint(endIndex,0,0);
@@ -314,26 +333,33 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 			bitbangUARTmessage(";BRI");
 			bitbangUARTint(instance->BufferReadIndex,0,0);
 			int temporaryBRI = instance->BufferReadIndex;
-
+			#endif
 			memcpy(resultPtr, &(instance->Buffer[startIndex]), (instance->BufferSize) - (startIndex)); //first half
-			memcpy(resultPtr + ((instance->BufferSize) - (startIndex) - 0), instance->Buffer, endIndex); //first half //second half
+			if(endIndex < startIndex) memcpy(resultPtr + ((instance->BufferSize) - (startIndex) - 0), instance->Buffer, endIndex); //second half
 			memcpy(resultPtr + lengthOfResult, 0, 1); //add null terminator
 
 			//"read" buffer to this point
 			*(&instance->BufferReadIndex) = i;
-			//i = instance->BufferReadIndex;
+#ifdef FBTSCB_BBUART
 			bitbangUARTmessage(";BRI'");
 			bitbangUARTint(instance->BufferReadIndex,0,0);
 
-			//calculating how many datas I read out
-			//if(instance->BufferSize - instance->BufferReadIndex - i)
 			bitbangUARTmessage(";DUIB");
 			bitbangUARTint(instance->DataUnitsInBuffer,0,0);
-			//*(&instance->DataUnitsInBuffer) -= (instance->BufferSize - instance->BufferReadIndex) - i - 1; //+1 cause I want next character after my last character
+#endif
+			//ADD FOR WHAT WAS BEFORE firstString!
+			//I will change the use of startIndex from where data starts to where firstString starts
+			if (startIndex >= strlen(firstString)) startIndex -= strlen(firstString);
+			else startIndex = startIndex + instance->BufferSize - strlen(firstString);
+			if ( initialReadIndex > startIndex) *(&instance->DataUnitsInBuffer) -= (instance->BufferSize + startIndex) - initialReadIndex;
+			else *(&instance->DataUnitsInBuffer) -= startIndex - (initialReadIndex);
+
 			*(&instance->DataUnitsInBuffer) -= lengthOfResult;
+			*(&instance->DataUnitsInBuffer) -= strlen(firstString);
+			*(&instance->DataUnitsInBuffer) -= strlen(secondString);
+#ifdef FBTSCB_BBUART
 			bitbangUARTmessage(";DUIB'");
 			bitbangUARTint(instance->DataUnitsInBuffer,0,0);
-
 			bitbangUARTmessage(";CPY'D:");
 			bitbangUARTmessage(resultPtr);
 			bitbangUARTmessage(";FLW0:");
@@ -342,21 +368,10 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 			bitbangUARTmessage(&(instance->Buffer[0]));
 			bitbangUARTmessage(".");
 			bitbangUARTmessage("\r\n");
+#endif
 			return 0; //all success
 		}
-
-		//return response;
 	}
-
-
-
-
-
-
-
-
-
-
 
 
 	//failed to find it starting at end of buffer and continuing at start, however it might be in one piece after buffer rollover
@@ -366,10 +381,15 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 		response = findBetweenTwoStrings(instance->Buffer, firstString, secondString, resultPtr);
 			if (!(response)){ //read out from buffer so it is up to date
 				//it is known that it is in one part
-				//startIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, firstString);
-				//endIndexPtr = strstr(startIndexPtr, secondString);
+				//resultPtr now contains the data between firstString and secondString
 
-				//endIndexPtr = (strstr(instance->Buffer, resultPtr));
+				//but it is undetermined if it's valid (maybe in unused area of buffer)
+				//we have already established we need2go circular
+				if(!((instance->BufferReadIndex + instance->DataUnitsInBuffer - instance->BufferSize) //gives first free bufferslot address
+						> (instance->BufferReadIndex - instance->BufferSize + strlen(firstString)+ strlen(secondString)+ strlen(resultPtr)))) { //and checks if it's same or higher than last used slot by message
+					//and if there is no way it would fit in there, note that message just ain't there
+					return 1;
+				}
 
 				while (instance->BufferReadIndex > 0){
 					//increment until we roll over (todo: replace with calculation)
@@ -384,15 +404,30 @@ bool findBetweenTwoStrings_circularBuffer(circularBuffer_8bit *instance, char *f
 					if (instance->BufferReadIndex >= instance->BufferSize) instance->BufferReadIndex = 0; //go circular
 				}
 
-				endIndexPtr = (strstr(instance->Buffer+instance->BufferReadIndex, resultPtr));
+				startIndexPtr = (strstr(instance->Buffer+instance->BufferReadIndex, resultPtr)); //
+
+				while (startIndexPtr > (instance->Buffer+instance->BufferReadIndex)){
+					instance->BufferReadIndex += 1;
+					instance->DataUnitsInBuffer -= 1;
+				}
+
+				//startIndexPtr holds now pointer to where message starts
+				endIndexPtr = strstr(startIndexPtr, secondString);
+				//and endIndexPtr now holds pointer to first char of secondString
+
+				// no copying, cause resultPtr already holds message
+
+				//and update buffer indexes. due to previous functions this starts at buffer[startIndex]
 				while (endIndexPtr > (instance->Buffer+instance->BufferReadIndex)){
 					instance->BufferReadIndex += 1;
 					instance->DataUnitsInBuffer -= 1;
-					endIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, resultPtr);
+					//endIndexPtr = strstr(instance->Buffer+instance->BufferReadIndex, resultPtr);
 				}
-				instance->BufferReadIndex += strlen(resultPtr);//endIndexPtr - startIndexPtr;
-				instance->DataUnitsInBuffer -= strlen(resultPtr); //endIndexPtr - startIndexPtr;
+				instance->BufferReadIndex += strlen(secondString);
+				instance->DataUnitsInBuffer -= strlen(secondString);
+#ifdef FBTSCB_BBUART
 				bitbangUARTmessage("Buff:Onepart2\r\n");
+#endif
 				return response; //found string
 			}
 	}
@@ -407,6 +442,7 @@ void dumpbuffer_8(circularBuffer_8bit *instance, bool validonly){
 	tinystring[1] = 0;
 	int i, j;
 	i = 0;
+	bitbangUARTmessage("DUMP:");
 	if (validonly){
 		j = instance->DataUnitsInBuffer;
 		i = instance->BufferReadIndex;
@@ -416,41 +452,100 @@ void dumpbuffer_8(circularBuffer_8bit *instance, bool validonly){
 				bitbangUARTmessage("\n"); //rolled over
 			}
 			tinystring[0] = instance->Buffer[i];
-			bitbangUARTmessage(tinystring);
+			if(tinystring[0] == 0) bitbangUARTmessage("_");
+			else bitbangUARTmessage(tinystring);
 			j--;
 			i++;
 		}
 	} else {
 		while (i <= instance->BufferSize){
 			tinystring[0] = instance->Buffer[i];
-			bitbangUARTmessage(tinystring);
+			if(tinystring[0] == 0) bitbangUARTmessage("_");
+			else bitbangUARTmessage(tinystring);
 			i++;
 		}
-
+		bitbangUARTmessage(" ");
+		bitbangUARTint(instance->BufferReadIndex, 0, 2);
 	}
 	bitbangUARTmessage("\r\n");
 	return;
 }
 
+
+// this function seems to run well as of 22.07.2017, only failing to report success if string cut in half
 void buffertester_8(){
+
+	uint32_t execCounter = 0;
+
+	bitbangUARTmessage("\r\n\r\n");
 	uint8_t testbufferData[20+2]; //nb, change this in init too //not sure whether I need that +2. Hopefully not
 	circularBuffer_8bit testbuffer;
 	circularBuffer8_init(&testbuffer, 20, &testbufferData);
-	char temporarystring[20];
-	char *pointer;
+	char temporarystring[40];
+	uint8_t testmethod = 0;
+	//char *pointer;
 	bool result;
 	while(1){
+
+		bitbangUARTmessage("EXEC:");
+		bitbangUARTint(execCounter,0,3);
+		bitbangUARTmessage("\r\n");
+		if ((execCounter == 7)||(execCounter == 8)){
+			execCounter++;
+			execCounter--;
+		}
+
 		//while(circularBuffer8_put_string(&testbuffer, ":HI;qwerty") == 0); //fill while can
-		circularBuffer8_put_string(&testbuffer, ":HI;9876543210");
-		result = findBetweenTwoStrings_circularBuffer(&testbuffer, ':', ';', &pointer);
+
+		if(testmethod == 0){
+		circularBuffer8_put_string(&testbuffer, "xy");
+		circularBuffer8_put_string(&testbuffer, ":;:HI:;:");
+		circularBuffer8_put_string(&testbuffer, "10");
+		}
+		if(testmethod == 1){
+				circularBuffer8_put_string(&testbuffer, "xyz");
+				circularBuffer8_put_string(&testbuffer, ":HI;");
+				circularBuffer8_put_string(&testbuffer, "43210");
+		}
+		if(testmethod == 2){
+						circularBuffer8_put_string(&testbuffer, "xyz");
+						circularBuffer8_put_string(&testbuffer, ";;:HI;");
+						circularBuffer8_put_string(&testbuffer, "10");
+		}
+
+		bitbangUARTmessage("FILLD");
+		dumpbuffer_8(&testbuffer, 0); //all, not just valid
+
+		bitbangUARTmessage("VALID");
+		dumpbuffer_8(&testbuffer, 1); //only valid
+
+		if(testmethod == 0) result = findBetweenTwoStrings_circularBuffer(&testbuffer, ":;:", ":;:", temporarystring);
+		if(testmethod == 1) result = findBetweenTwoStrings_circularBuffer(&testbuffer, ":", ";", temporarystring);
+		if(testmethod == 2) result = findBetweenTwoStrings_circularBuffer(&testbuffer, ":", ";", temporarystring);
+
+		bitbangUARTmessage("VLD02");
+		dumpbuffer_8(&testbuffer, 1); //only valid
+
 		if (!(result)){
 			bitbangUARTmessage("Found:");
-			bitbangUARTmessage(&(pointer));
+			bitbangUARTmessage(temporarystring);
 			bitbangUARTmessage(".\r\n");
 		} else {
-			bitbangUARTmessage("Failed to find.\r\n");
+			//bitbangUARTmessage("Failed to find.\r\n");
+			bitbangUARTmessage("Failed to find");
+			bitbangUARTmessage(".\r\n");
 		}
-		dumpbuffer_8(&testbuffer, 1);
+
+		//dumpbuffer_8(&testbuffer, 1);
+		dumpbuffer_8(&testbuffer, 0); //all, not just valid
 		while(circularBuffer8_get(&testbuffer, temporarystring) == 0); //clear out the buffer
+		//bitbangUARTmessage("CLEAR");
+		//dumpbuffer_8(&testbuffer, 0); //all, not just valid
+
+		//bitbangUARTmessage("CLVLD");
+		//dumpbuffer_8(&testbuffer, 1); //only valid
+
+		bitbangUARTmessage("\r\n");
+		execCounter++;
 	}
 }
