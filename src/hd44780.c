@@ -103,9 +103,11 @@ bool hd44780_addInstructionToBuffer(hd44780_instance *instance, uint16_t command
 	uint8_t commandMSB = (command >> 4) & 0x0F;
 	uint8_t commandLSB = (command     ) & 0x0F;
 	bool response = 0;
+	response |= hd44780_addToTxBuffer(instance, 0); //to clear that fcking E bit
 	response |= hd44780_addToTxBuffer(instance, commandMSB);
 	response |= hd44780_addToTxBuffer(instance, commandMSB | (1<<HD44780_E_BIT));
 	response |= hd44780_addToTxBuffer(instance, commandMSB);
+	response |= hd44780_addToTxBuffer(instance, 0); //to clear that fcking E bit
 	response |= hd44780_addToTxBuffer(instance, commandLSB);
 	response |= hd44780_addToTxBuffer(instance, commandLSB | (1<<HD44780_E_BIT));
 	response |= hd44780_addToTxBuffer(instance, commandLSB);
@@ -154,8 +156,13 @@ bool hd44780_printtext(hd44780_instance *instance, char *text){ //lcdword("Denry
   int i, len;
   bool response = 0;
   len=strlen(text);
+  //bitbangUARTmessage("LCD char:");
   for(i=0; i<len; i++){
 	  response |= hd44780_addDataToBuffer(instance, text[i]);
+	  //this appears to send characters OK, still think it is LCD fault.
+
+	  //bitbangUARTbin(text[i], 0, 8);
+	  //bitbangUARTmessage(";");
   }
   while((*instance).handlerFunction(instance) == 0); //empty buffer a bit
   return response;
@@ -181,17 +188,37 @@ bool hd44780_init(hd44780_instance *instance, uint8_t columns, uint8_t *rows, bo
 	instance->LCDCommandBufferSize = HD44780_TX_BUFFER_SIZE;
 
   bool response = 0;
+
+
   //note that reset is performed by setting it to 8-bit mode (cause it needs single 4-bit command afterwards, ruining sync)
   //this command is sent three times, because it occasionally failed to work when sending once. Two might work too
-  response |= hd44780_addInstructionToBuffer(instance, (1<<5)|(1<<4)|(((uint8_t)(columns))<<3)|(((uint8_t)(fiveTimesTen))<<2)); //set 8-bit mode as reset, linecount, 5x8 or 5x10
-  response |= hd44780_addInstructionToBuffer(instance, (1<<5)|(1<<4)|(((uint8_t)(columns))<<3)|(((uint8_t)(fiveTimesTen))<<2)); //set 8-bit mode as reset, linecount, 5x8 or 5x10
-  response |= hd44780_addInstructionToBuffer(instance, (1<<5)|(1<<4)|(((uint8_t)(columns))<<3)|(((uint8_t)(fiveTimesTen))<<2)); //set 8-bit mode as reset, linecount, 5x8 or 5x10
+  //response |= hd44780_addInstructionToBuffer(instance, (1<<5)|(1<<4)|(((uint8_t)(columns))<<3)|(((uint8_t)(fiveTimesTen))<<2)); //set 8-bit mode as reset, linecount, 5x8 or 5x10
+  //response |= hd44780_addInstructionToBuffer(instance, (1<<5)|(1<<4)|(((uint8_t)(columns))<<3)|(((uint8_t)(fiveTimesTen))<<2)); //set 8-bit mode as reset, linecount, 5x8 or 5x10
+  //response |= hd44780_addInstructionToBuffer(instance, (1<<5)|(1<<4)|(((uint8_t)(columns))<<3)|(((uint8_t)(fiveTimesTen))<<2)); //set 8-bit mode as reset, linecount, 5x8 or 5x10
 
-
+/*
   //and repeat to avoid single nibble
-  //response |= hd44780_addToTxBuffer(instance, 0b0000); //all low now
-  //response |= hd44780_addToTxBuffer(instance, 0b0000 | (1<<HD44780_E_BIT));
-  //response |= hd44780_addToTxBuffer(instance, 0b0000);
+  response |= hd44780_addToTxBuffer(instance, 0b0000); //all low now
+  response |= hd44780_addToTxBuffer(instance, 0b0000 | (1<<HD44780_E_BIT));
+  response |= hd44780_addToTxBuffer(instance, 0b0000);
+*/
+
+
+  //to "reset" the LCD we request 8-bit mode and we assume we are in 4-bit mode.
+  response |= hd44780_addToTxBuffer(instance, 0b0011);
+  response |= hd44780_addToTxBuffer(instance, 0b0011 | (1<<HD44780_E_BIT));
+  response |= hd44780_addToTxBuffer(instance, 0b0011);
+	//and we send same thing again, cause 4-bit mode doesn't care about lower nibble and 8-bit wants what we sent just now
+		 response |= hd44780_addToTxBuffer(instance, 0b0011);
+		  response |= hd44780_addToTxBuffer(instance, 0b0011 | (1<<HD44780_E_BIT));
+		  response |= hd44780_addToTxBuffer(instance, 0b0011);
+
+
+  //it is essential to start with the odd command without a mating 4-bit command, to enable the 4-bit mode.
+  response |= hd44780_addToTxBuffer(instance, 0b0010);
+  response |= hd44780_addToTxBuffer(instance, 0b0010 | (1<<HD44780_E_BIT));
+  response |= hd44780_addToTxBuffer(instance, 0b0010);
+
 
   if(columns == 1) 	columns = 0;	//one line
   else 				columns = 1;	//two lines

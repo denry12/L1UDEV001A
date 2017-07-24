@@ -51,7 +51,7 @@ void l11uxx_i2c_sendStop(){
 	return;
 }
 
-void l11uxx_i2c_sendByte(uint8_t *data){
+void l11uxx_i2c_sendByte(uint8_t data){
 	if(LPC_I2C->CONSET & (1<<5)) LPC_I2C->CONCLR = (1<<5); //clear STA bit
 	while(!(LPC_I2C->CONSET & (1<<3))); //after START is sent, SI bit is set (wait here until it is)
 	LPC_I2C->DAT = data;
@@ -76,6 +76,8 @@ void l11uxx_i2c_receiveByte(){
 	return;
 }
 
+
+//i2c bitfreq = i2cpclk / (sclh+scll)
 void l11uxx_i2c_setspeed(uint16_t SCLH, uint16_t SCLL){
 	//both at least 4
 	if(SCLH < 4) SCLH = 4;
@@ -92,7 +94,7 @@ void l11uxx_i2c_init(){ //TODO: add speed
 	//LPC_SYSCON->SYSAHBCLKCTRL |= (1<<5); //enable clock to I2C //done on device setup?
 	//LPC_SYSCON->PRESETCTRL |= (1 << 1); //remove reset from I2C //done on device setup?
 
-	l11uxx_i2c_setspeed(2000, 2000);
+	l11uxx_i2c_setspeed(200, 200);
 	LPC_I2C->CONCLR = 0xFF; //clear ctrl register
 
 

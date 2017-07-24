@@ -575,6 +575,12 @@ bool esp8266_checkForRxPacket(esp8266_instance *instance, char *response){
 
 	//memmove(response, responsePtr, strlen(responsePtr)+1);
 	//memmove(response, responseString, strlen(responseString)); //no wanna use memmove cause doesn't add 0 terminator
+
+	//if(strlen(responseString) == 0){
+	//	//empty string, what are you trying to pull
+	//	return 1;
+	//}
+
 	strcpy(response, responseString);
 
 #ifdef ESP_RXPACKET_BBUARTDEBUGMESSAGES_ENABLE
@@ -1038,8 +1044,9 @@ bool esp8266_receiveHandler(esp8266_instance *instance){
 		char *templol = instance->rxPacketBuffer->Buffer+instance->rxPacketBuffer->BufferReadIndex;
 
 		instance->rxPacketCount++;
+#ifdef ESP_RXPACKET_BBUARTDEBUGMESSAGES_ENABLE
 		bitbangUARTmessage("Data in rxPacketBuffer\r\n");
-
+#endif
 
 		//bitbangUARTmessage("New data@");
 		//bitbangUARThex(instance->rxPacketPointer[instance->rxPacketCount-1],0,8);

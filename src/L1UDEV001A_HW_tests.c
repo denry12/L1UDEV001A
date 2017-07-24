@@ -521,6 +521,100 @@ void HW_test_uartToSPIconverter(int SPInumber){
 
 }
 
+void hd44780_I2CLCD_proofOfConcept_setLCDpins(hd44780_instance *i2cLCD, uint8_t LCDRS, uint8_t LCDRW, uint8_t LCDMSN){ //it handles E as well
+	//got a packet to send
+	uint8_t LCDE, LCDdatabyte;
+	l11uxx_i2c_sendStart();
+	delay(1);
+	LCDdatabyte = 0;
+	l11uxx_i2c_sendAddr(i2cLCD->I2C_addr, 0);
+	LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
+	LCDdatabyte |= ((LCDE   & 0x01) << i2cLCD->I2C_pinE_offset);
+	LCDdatabyte |= ((LCDRW  & 0x01) << 1);
+	LCDdatabyte |= ((LCDRS  & 0x01) << 0);
+	delay(1);
+	l11uxx_i2c_sendByte(LCDdatabyte);
+	delay(1);
+	l11uxx_i2c_sendStop();
+	delay(1);
+
+	LCDE = 1;
+	l11uxx_i2c_sendStart();
+	delay(1);
+	LCDdatabyte = 0;
+	l11uxx_i2c_sendAddr(i2cLCD->I2C_addr, 0);
+	LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
+	LCDdatabyte |= ((LCDE   & 0x01) << i2cLCD->I2C_pinE_offset);
+	LCDdatabyte |= ((LCDRW  & 0x01) << 1);
+	LCDdatabyte |= ((LCDRS  & 0x01) << 0);
+	delay(1);
+	l11uxx_i2c_sendByte(LCDdatabyte);
+	delay(1);
+	l11uxx_i2c_sendStop();
+	delay(1);
+
+	LCDE = 0;
+	l11uxx_i2c_sendStart();
+	delay(1);
+	LCDdatabyte = 0;
+	l11uxx_i2c_sendAddr(i2cLCD->I2C_addr, 0);
+	LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
+	LCDdatabyte |= ((LCDE   & 0x01) << i2cLCD->I2C_pinE_offset);
+	LCDdatabyte |= ((LCDRW  & 0x01) << 1);
+	LCDdatabyte |= ((LCDRS  & 0x01) << 0);
+	delay(1);
+	l11uxx_i2c_sendByte(LCDdatabyte);
+	delay(1);
+	l11uxx_i2c_sendStop();
+	delay(1);
+
+
+
+}
+
+void hd44780_I2CLCD_proofOfConcept(hd44780_instance *i2cLCD){ //uses single line of lcd. all commands before first I2C packet should be done here
+	const bool multiline = 1; //nb, for some LCDs contrast gets fucked if you change between 1 or 2 lines
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0010); // set 4-bit operation !!!! THIS LINE IS ESSENTIAL FOR FIRST BOOT, however ruins every second boot
+
+	if (multiline){
+		hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0010); // set 4-bit operation, 2-line display, 5x8 font 1/2
+		hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b1000); // set 4-bit operation, 2-line display, 5x8 font 2/2
+	} else {
+		hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0010); // set 4-bit operation, 1-line display, 5x8 font 1/2
+		hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0000); // set 4-bit operation, 1-line display, 5x8 font 2/2
+	}
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0000); // turn on disp & cursor (blink) 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b1111); // turn on disp & cursor (blink) 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0000); // set mode increment by 1 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0110); // set mode increment by 1 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0000); // return home 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0010); // return home 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0000); // clear screen 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 0, 0, 0b0001); // clear screen 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b0100); // write H 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b1000); // write H 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b0101); // write W 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b0111); // write W 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b0010); // write " " 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b0000); // write " " 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b0100); // write O 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b1111); // write O 2/2
+
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b0100); // write K 1/2
+	hd44780_I2CLCD_proofOfConcept_setLCDpins(i2cLCD, 1, 0, 0b1011); // write K 2/2
+
+	while(1); //lock mcu cause I claimed this function does not return
+}
+
 void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_instance *i2cLCD01dn){ //uses two line LCD, all commands up to (including) init should be done before this
 	int lcdcursortempY=0;
 	int lcdcursortempX=0;
@@ -533,8 +627,14 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 	l11uxx_uart_pinSetup_unset(47, 46); //cause bootloader may have done trix
 	l11uxx_uart_pinSetup(36, 37); //set up to ESP8266
 
-	hd44780_clear(i2cLCD01dn);
-	hd44780_clear(i2cLCD01up);
+	bitbangUARTmessage("\r\n");
+
+	hd44780_printtext(i2cLCD01up, "x");
+	hd44780_printtext(i2cLCD01dn, "y");
+
+	hd44780_clear(i2cLCD01dn); //!? clear needs init afterwards???
+	hd44780_clear(i2cLCD01up); //!? clear needs init afterwards???
+
 	hd44780_printtext(i2cLCD01up, "INIT 1...");
 	hd44780_printtext(i2cLCD01dn, "INIT 2...");
 	hd44780_lcdcursor(i2cLCD01dn, 20, 1);
@@ -665,7 +765,7 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 			ptrForStrstr = strstr(temporaryString1, "LCDCLR");
 			if(ptrForStrstr){
 				//packet contains LCD clear request
-				HW_test_debugmessage("LCD clear\r\n);
+				HW_test_debugmessage("LCD clear\r\n");
 				hd44780_clear(i2cLCD01up);
 				hd44780_clear(i2cLCD01dn);
 			}
@@ -675,13 +775,12 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 				//packet contains LCD cursor location, e.g. "LCDCRS:01,03";
 				HW_test_debugmessage("LCD cursor:");
 				strcpy(temporaryString2, ptrForStrstr+7);
-				HW_test_debugmessage(temporaryString2);
+				HW_test_debugmessage(temporaryString2); //this here contains entire length string so good enough. Especially for debug
 				lcdcursortempX = atoi(temporaryString2);
-				HW_test_debugmessage(";");
-				strcpy(temporaryString2, ptrForStrstr+7+3);
-				HW_test_debugmessage(temporaryString2);
-				lcdcursortempY = atoi(temporaryString2);
 				HW_test_debugmessage(".\r\n");
+				strcpy(temporaryString2, ptrForStrstr+7+3);
+				lcdcursortempY = atoi(temporaryString2);
+
 
 				//lcdcursortempY =
 				if(lcdcursortempY<=1) hd44780_lcdcursor(i2cLCD01up, lcdcursortempX, lcdcursortempY); //uncomment to make LCD work

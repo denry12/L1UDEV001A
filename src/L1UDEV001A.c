@@ -448,6 +448,8 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 
 	while(dataInvalid == 0){
 
+		//haha delays for I2C are ridic, cause the slow part is HD44780 from 70's or w/e, not PCF
+
 		//got a packet to send
 		l11uxx_i2c_sendStart();
 		//delay(1);
@@ -456,27 +458,29 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 
 		//l11uxx_i2c_sendStop();
 
-		//bitbangUARTmessage("E: ");
-		//bitbangUARThex(((uint8_t)(LCDE)),0,0);
-		/*if (LCDE){
-			bitbangUARTmessage("; RS: ");
-			bitbangUARThex(((uint8_t)(LCDRS)),0,0);
-			bitbangUARTmessage("; frombuffer: ");
-			bitbangUARTbin(((uint8_t)(LCDMSN)),0,8);
-			bitbangUARTmessage("\r\n");
-		}*/
+//		bitbangUARTmessage("E: ");
+//		bitbangUARThex(((uint8_t)(LCDE)),0,0);
+//		if (LCDE){
+//			bitbangUARTmessage("; RS: ");
+//			bitbangUARThex(((uint8_t)(LCDRS)),0,0);
+//			bitbangUARTmessage("; frombuffer: ");
+//			bitbangUARTbin(((uint8_t)(LCDMSN)),0,4);
+//			bitbangUARTmessage("\r\n");
+//		} else {
+//			bitbangUARTmessage("\r\n");
+//		}
 
 
-		delay(1);
+		//delay(1);
 		LCDdatabyte |= ((LCDMSN & 0x0F) << 4);
 		LCDdatabyte |= ((LCDE   & 0x01) << instance->I2C_pinE_offset);
 		LCDdatabyte |= ((LCDRW  & 0x01) << 1);
 		LCDdatabyte |= ((LCDRS  & 0x01) << 0);
 		//delay(1);
 		l11uxx_i2c_sendByte(LCDdatabyte);
-		delay(1);
-		l11uxx_i2c_sendStop();
 		//delay(1);
+		l11uxx_i2c_sendStop();
+		delay(1); // but one delay is still necessary cause otherwise PCF tries to go faster than LCD
 		dataInvalid = hd44780_getFromTxBuffer(instance, &LCDMSN, &LCDRS, &LCDRW, &LCDE); //this was at top of while loop but it seemed illogical. How did it even work.
 	}
 
@@ -804,6 +808,8 @@ int main(void) {
 	i2cLCD01dn.I2C_addr = (uint8_t)(0x27);
 	hd44780_init(&i2cLCD01dn, 40, 2, 0);
 	i2cLCD01dn.I2C_pinE_offset = (uint8_t)(3); //cause using BL pin as E
+
+	//hd44780_I2CLCD_proofOfConcept(&i2cLCD01up); //does not return //this function is for when you start to blame LCD is shit
 
 	hd44780lcd_handler(&i2cLCD01up);
 	hd44780lcd_handler(&i2cLCD01dn);
