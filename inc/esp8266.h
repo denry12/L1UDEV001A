@@ -15,8 +15,8 @@
 #include <stdint.h>
 #include "bufferManipulation.h"
 
-#define RX_BUFFER_SIZE 500
-#define TX_BUFFER_SIZE 500
+#define RX_BUFFER_SIZE 100
+#define TX_BUFFER_SIZE 100
 
 
 //#define CONN_RX_BUFFER_SIZE 50
@@ -72,10 +72,11 @@ typedef struct {
 	char cipmux_latest;
 	int openConnections;
 	//char *oldestRxPointer; //pointer to oldest packet in Rx packet FIFO
-	char rxPacketBuffer[RX_PACKET_CONTENT_MAX_SIZE*RX_PACKET_MAX_COUNT];
-	int rxPacketBufferSize;
-	int rxPacketBufferIndex;
-	char *rxPacketPointer[RX_PACKET_MAX_COUNT];
+	circularBuffer_8bit *rxPacketBuffer;
+	//char rxPacketBuffer[RX_PACKET_CONTENT_MAX_SIZE*RX_PACKET_MAX_COUNT];
+	//int rxPacketBufferSize;
+	//int rxPacketBufferIndex;
+	//char *rxPacketPointer[RX_PACKET_MAX_COUNT];
 	int rxPacketCount;
 } esp8266_instance;
 

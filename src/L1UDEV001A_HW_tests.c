@@ -665,6 +665,7 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 			ptrForStrstr = strstr(temporaryString1, "LCDCLR");
 			if(ptrForStrstr){
 				//packet contains LCD clear request
+				HW_test_debugmessage("LCD clear\r\n);
 				hd44780_clear(i2cLCD01up);
 				hd44780_clear(i2cLCD01dn);
 			}
@@ -672,21 +673,28 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 			ptrForStrstr = strstr(temporaryString1, "LCDCRS:");
 			if(ptrForStrstr){
 				//packet contains LCD cursor location, e.g. "LCDCRS:01,03";
+				HW_test_debugmessage("LCD cursor:");
 				strcpy(temporaryString2, ptrForStrstr+7);
+				HW_test_debugmessage(temporaryString2);
 				lcdcursortempX = atoi(temporaryString2);
+				HW_test_debugmessage(";");
 				strcpy(temporaryString2, ptrForStrstr+7+3);
+				HW_test_debugmessage(temporaryString2);
 				lcdcursortempY = atoi(temporaryString2);
+				HW_test_debugmessage(".\r\n");
+
 				//lcdcursortempY =
-				//if(lcdcursortempY<=1) hd44780_lcdcursor(i2cLCD01up, lcdcursortempX, lcdcursortempY); //uncomment to make LCD work
-				//else hd44780_lcdcursor(i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2)); //uncomment to make LCD work
+				if(lcdcursortempY<=1) hd44780_lcdcursor(i2cLCD01up, lcdcursortempX, lcdcursortempY); //uncomment to make LCD work
+				else hd44780_lcdcursor(i2cLCD01dn, lcdcursortempX, (lcdcursortempY-2)); //uncomment to make LCD work
 			}
 			ptrForStrstr = 0;
 			ptrForStrstr = strstr(temporaryString1, "LCDTXT:");
 			if(ptrForStrstr){
 				//packet contains LCD text data
-				//if (lcdcursortempY <= 1) hd44780_printtext(i2cLCD01up, (ptrForStrstr+7)); //uncomment to make LCD work
-				//else hd44780_printtext(i2cLCD01dn, (ptrForStrstr+7)); //uncomment to make LCD work
-				HW_test_debugmessage("5)Printing:");
+				if (lcdcursortempY <= 1) hd44780_printtext(i2cLCD01up, (ptrForStrstr+7)); //uncomment to make LCD work
+				else hd44780_printtext(i2cLCD01dn, (ptrForStrstr+7)); //uncomment to make LCD work
+				//HW_test_debugmessage("5)");
+				HW_test_debugmessage("Printing:");
 				HW_test_debugmessage(ptrForStrstr+7);
 				HW_test_debugmessage(".\r\n");
 			}
@@ -694,6 +702,7 @@ void espToLCD(esp8266_instance *esp01, hd44780_instance *i2cLCD01up, hd44780_ins
 			ptrForStrstr = strstr(temporaryString1, "LCDRST");
 			if(ptrForStrstr){
 				//packet contains LCD reset request
+				HW_test_debugmessage("LCD reset\r\n");
 				hd44780_init(i2cLCD01up);
 				hd44780_init(i2cLCD01dn);
 				hd44780_clear(i2cLCD01up);

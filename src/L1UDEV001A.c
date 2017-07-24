@@ -450,7 +450,7 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 
 		//got a packet to send
 		l11uxx_i2c_sendStart();
-		delay(1);
+		//delay(1);
 		LCDdatabyte = 0;
 		l11uxx_i2c_sendAddr(instance->I2C_addr, 0);
 
@@ -472,7 +472,7 @@ bool hd44780lcd_handler(hd44780_instance *instance){
 		LCDdatabyte |= ((LCDE   & 0x01) << instance->I2C_pinE_offset);
 		LCDdatabyte |= ((LCDRW  & 0x01) << 1);
 		LCDdatabyte |= ((LCDRS  & 0x01) << 0);
-		delay(1);
+		//delay(1);
 		l11uxx_i2c_sendByte(LCDdatabyte);
 		delay(1);
 		l11uxx_i2c_sendStop();
@@ -766,9 +766,14 @@ int main(void) {
 	circularBuffer_8bit espTxBuffer;
 	circularBuffer8_init(&espTxBuffer, TX_BUFFER_SIZE, &espTxBufferData);
 
+	uint8_t espRxPacketBufferData[RX_PACKET_CONTENT_MAX_SIZE*RX_PACKET_MAX_COUNT+2]; //nb, change this in init too //not sure whether I need that +2. Hopefully not
+	circularBuffer_8bit espRxPacketBuffer;
+	circularBuffer8_init(&espRxPacketBuffer, RX_PACKET_CONTENT_MAX_SIZE*RX_PACKET_MAX_COUNT, &espRxPacketBufferData);
+
 	esp8266_instance esp01;
 	esp01.sendToESPbuffer = &espTxBuffer;
 	esp01.receivedFromESPbuffer = &espRxBuffer;
+	esp01.rxPacketBuffer = &espRxPacketBuffer;
 	esp01.getCharFromESP = &esp8266_ESPToLPC;
 	esp01.sendCharToESP = &esp8266_LPCToESP;
 	esp8266_initalize(&esp01);
