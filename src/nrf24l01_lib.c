@@ -870,6 +870,8 @@ bool rxRoutine(nrf24l01_instance *instance){
 			//temporaryInt=nrf24l01_isRxFIFOEmpty();
 
 
+			// get data pipe number (for payload) from status register bits 3:1??
+
 			//while(!(temporaryInt)){
 			while(!(rxFIFOempty)){
 				//nrf24l01_CSEnable();
@@ -1074,7 +1076,7 @@ bool nrf24l01_init_generic(nrf24l01_instance *instance){
 	nrf24l01_writeRegister_withFrame (instance, 0x02, 0x01); //en_rxaddr - enable rx on datapipe 0
 
 	//nrf24l01_writeRegister_withFrame (instance, 0x03, 0x03); //setup_aw - set rx/tx addr len 5 bytes
-	nrf24l01_setAddrWidth(instance, 3); //setup_aw - set rx/tx addr len 5 bytes
+	nrf24l01_setAddrWidth(instance, 5); //setup_aw - set rx/tx addr len 5 bytes
 
 	//nrf24l01_writeRegister_withFrame (instance, 0x05, 1); //rf_ch - set 7-bit channel
 	nrf24l01_setFreq(instance, 1); //rf_ch - set 7-bit channel

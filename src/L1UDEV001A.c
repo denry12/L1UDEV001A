@@ -546,16 +546,17 @@ bool nrf24l01_spiGet(uint8_t *dataPacket){
 }
 
 bool nrf24l01_CSN_enable(){
-	//delay(10);
+	delay(10);
 	GPIOSetValue(1, 25, 0);
-	delay(1);
+	delay(10);
 	return 0;
 }
 
 bool nrf24l01_CSN_disable(){
-	//delay(10);
+	delay(10);
+	// TODO: ADD CHECK THAT SPI HAS FINISHED BEFORE RELEASING CS
 	GPIOSetValue(1, 25, 1);
-	delay(1);
+	delay(10);
 	return 0;
 }
 
