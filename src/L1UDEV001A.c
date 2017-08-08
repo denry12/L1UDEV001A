@@ -24,6 +24,7 @@
 #include "hd44780.h"
 #include "ILI9341.h"
 #include "bufferManipulation.h"
+#include "nrf24l01_lib.h"
 
 //hwtests
 
@@ -170,8 +171,8 @@ void setupClocks(){
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<13); //enable clock to ADC
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<15); //enable clock to WDT
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
-	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
-//	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
+//	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
+	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
 	LPC_SYSCON->PRESETCTRL |= (1 << 1); //remove reset from I2C
 	LPC_SYSCON->PRESETCTRL |= (1 << 2); //remove reset from SSP1
 
@@ -526,6 +527,52 @@ bool ili9341_handler(ili9341_instance *instance){
 	return dataInvalid; //if 0, all cool
 }
 
+// nrf24l01 hardware specific functions START
+
+bool nrf24l01_spiSend(uint8_t *dataPacket){
+	l11uxx_spi_sendByte(1, dataPacket);
+	return 0;
+}
+
+bool nrf24l01_spiRxFlush(){
+	l11uxx_spi_flushRxBuffer(1);
+	return 0;
+}
+
+bool nrf24l01_spiGet(uint8_t *dataPacket){
+	//nrf24l01_flushSPIRx();
+	*dataPacket = l11uxx_spi_receiveByte(1);
+	return 0;
+}
+
+bool nrf24l01_CSN_enable(){
+	//delay(10);
+	GPIOSetValue(1, 25, 0);
+	delay(1);
+	return 0;
+}
+
+bool nrf24l01_CSN_disable(){
+	//delay(10);
+	GPIOSetValue(1, 25, 1);
+	delay(1);
+	return 0;
+}
+
+bool nrf24l01_CE_enable(){
+	GPIOSetValue(1, 19, 1);
+	return 0;
+}
+
+bool nrf24l01_CE_disable(){
+	GPIOSetValue(1, 19, 0);
+	return 0;
+}
+
+
+
+// nrf24l01 hardware specific functions END
+
 int main(void) {
 
 
@@ -559,15 +606,33 @@ int main(void) {
 	//buffertester_8(); //does not return
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
-	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 2); //works well for 320x240rgblcd & ext flash & nokiaLCD
+	//l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 2); //works well for 320x240rgblcd & ext flash & nokiaLCD
 	//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
-	//l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?), a specific 9113wifi
+	l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?), a specific 9113wifi
 	//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
 	//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
 
 	l11uxx_uart_pinSetup(47, 46); //set up to CH340 //careful, esp is set afterwards
 	l11uxx_uart_init(9600); //upping speed later mby
 
+
+	nrf24l01_instance nrf24Radio01;
+	nrf24Radio01.sendSPIpacket = &nrf24l01_spiSend;
+	nrf24Radio01.getSPIpacket = &nrf24l01_spiGet;
+	nrf24Radio01.flushSPIrxBuffer = &nrf24l01_spiRxFlush;
+	nrf24Radio01.enableCSN = &nrf24l01_CSN_enable;
+	nrf24Radio01.disableCSN = &nrf24l01_CSN_disable;
+	nrf24Radio01.enableCE = &nrf24l01_CE_enable;
+	nrf24Radio01.disableCE = &nrf24l01_CE_disable;
+
+	GPIOSetDir(1, 25, 1); //nRF24L01 CSN
+	GPIOSetDir(1, 19, 1); //nRF24L01 CE
+	nrf24l01_init_generic(&nrf24Radio01);
+
+	//TxRoutine and RxRoutine do not return
+	//if(!(GPIOGetValue(0, 2))) txRoutine(&nrf24Radio01);
+	if(!(GPIOGetValue(0, 7)))  rxRoutine(&nrf24Radio01);
+	else txRoutine(&nrf24Radio01);
 
 
 	bitbangUARTmessage("\r\n\r\n");
