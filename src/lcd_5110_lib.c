@@ -364,9 +364,12 @@ void lcd_5110_sendByte(int data){ //optimize me?
 //	} //bitbang SPI ends
 
 	l11uxx_spi_sendByte(1, data);
-
+	while(l11uxx_spi_checkIfBusy(1)); // not having this line causes much issue
+	// so definitely find a way to add it when redoing the library
 
 	//printf("\n"); //DEBUG LINE
+
+
 	LCD_5110_CE_HIGH;
 	LCD_5110_DELAY;
 	
