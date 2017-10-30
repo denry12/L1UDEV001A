@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include "esp8266.h"
 #include "hd44780.h"
+#include "lcd_hx1230_lib.h"
 
 //#include "JDP_wifi_creds.h"
 //#include "le_wifi_creds.h" 	//NB! You do not have this file. It just overwrites next two defines
@@ -325,6 +326,10 @@ void HW_test_lcd_5110_with_uptime(){
 	return;
 }
 
+void HW_test_lcd_hx1230 (hx1230_instance *lcd){
+	lcd_hx1230_init(lcd);
+	lcd_hx1230_fillchecker(lcd);
+}
 
 void HW_test_ILI9341(){
 	//enjoy, this takes like 9 weeks for it to finish

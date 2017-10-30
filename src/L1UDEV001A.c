@@ -25,6 +25,7 @@
 #include "ILI9341.h"
 #include "bufferManipulation.h"
 #include "nrf24l01_lib.h"
+#include "lcd_hx1230_lib.h"
 
 //hwtests
 
@@ -172,7 +173,8 @@ void setupClocks(){
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<15); //enable clock to WDT
 	LPC_SYSCON->SYSAHBCLKCTRL |= (0x01<<18); //enable clock to SSP1
 //	LPC_SYSCON->SSP1CLKDIV = 1; //SSP1 clock divider
-	LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
+	//LPC_SYSCON->SSP1CLKDIV = 8; //SSP1 clock divider
+	LPC_SYSCON->SSP1CLKDIV = 64; //SSP1 clock divider
 	LPC_SYSCON->PRESETCTRL |= (1 << 1); //remove reset from I2C
 	LPC_SYSCON->PRESETCTRL |= (1 << 2); //remove reset from SSP1
 
@@ -574,6 +576,43 @@ bool nrf24l01_CE_disable(){
 
 // nrf24l01 hardware specific functions END
 
+
+// lcd_hx1230 hardware specific functions START
+bool hx1230_spiSend(uint16_t *dataPacket){
+	l11uxx_spi_sendByte(1, dataPacket);
+	return 0;
+}
+bool hx1230_CS_enable(){
+	delay(10);
+	GPIOSetValue(1, 29, 0);
+	delay(10);
+	return 0;
+}
+
+bool hx1230_CS_disable(){
+	delay(10);
+	// TODO: ADD CHECK THAT SPI HAS FINISHED BEFORE RELEASING CS
+	GPIOSetValue(1, 29, 1);
+	delay(10);
+	return 0;
+}
+
+bool hx1230_reset_enable(){
+	delay(10);
+	GPIOSetValue(1, 28, 0);
+	delay(10);
+	return 0;
+}
+
+bool hx1230_reset_disable(){
+	delay(10);
+	GPIOSetValue(1, 28, 1);
+	delay(10);
+	return 0;
+}
+// lcd_hx1230 hardware specific functions END
+
+
 int main(void) {
 
 
@@ -600,9 +639,27 @@ int main(void) {
 
 
 	setupClocks();
+
 	//setup48MHzInternalClock(); //gotta go fast
 	//if( setupClocking(16000000, 48000000) ) while (1); //failed to set clock. Lock MCU
 	if( setupClocking(0, 48000000) ) while (1); //failed to set clock. Lock MCU
+
+
+	l11uxx_spi_pinSetup(1, 38, 26, 13);
+	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0);
+	//HW_test_lcd_5110_welcome();
+
+	hx1230_instance hx1230_0;
+	hx1230_0.sendSPIpacket = &hx1230_spiSend;
+	hx1230_0.enableCS = &hx1230_CS_enable;
+	hx1230_0.disableCS = &hx1230_CS_disable;
+	hx1230_0.enableReset = &hx1230_reset_enable;
+	hx1230_0.disableReset = &hx1230_reset_disable;
+	l11uxx_spi_init(1, 9, 0, 1, 1, 0, 0, 0);
+	GPIOSetDir(1, 29, 1); // CS of nokiaLCD/hx1230
+	GPIOSetDir(1, 28, 1); // reset of ^
+	HW_test_lcd_hx1230(&hx1230_0);
+
 
 	//buffertester_8(); //does not return
 
@@ -885,6 +942,8 @@ int main(void) {
 	int lcdcursortempY=0;
 	int lcdcursortempX=0;
 	char *ptrForStrstr=0;
+
+
 
 	espToLCD(&esp01, &i2cLCD01up, &i2cLCD01dn); //does not return
 
