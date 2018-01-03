@@ -282,6 +282,9 @@ void lcd_5110_reset(){
 	//printf("LCD reset start \n");
 	LCD_5110_DELAY;
 	LCD_5110_RST_LOW;
+	// reset must remain low after power up for 30ms
+	// after releasing, one can start sending commands right away
+	delay(100);
 	LCD_5110_DELAY;
 	LCD_5110_RST_HIGH;
 	// lcd_5110_clear();
@@ -325,21 +328,29 @@ void lcd_5110_init(){
 	LCD_5110_CLK_LOW;
 	
 	lcd_5110_reset();
-	
+
+	//lcd_5110_sendCommand(0x21);
 	lcd_5110_sendCommand(0b00100001); //active, horizontal addressing, extended instruction set
-	lcd_5110_sendCommand(0b10010000); //VOP register
-	
+
+	lcd_5110_sendCommand(0x13); // set bias, 0b011
+
+	lcd_5110_sendCommand(0xc2); // VOP register <- this line works for newer LCDs
+	//lcd_5110_sendCommand(0b10010000); //VOP register <- this line does not work for newer LCDs
+
+	//lcd_5110_sendCommand(0x20);
 	lcd_5110_sendCommand(0b00100000); //active, horizontal addressing, basic instruction set
-	//delay(1000);
-	//printf("All segments on!\n");
+
+	//lcd_5110_sendCommand(0x09);
 	lcd_5110_sendCommand(0b00001001); //all segments on
-	//delay(1000);
-	//printf("Inverted!\n");
-	lcd_5110_sendCommand(0b00001101); //inverted
-	//delay(1000);
+
+	// x&y to 0
+	//lcd_5110_sendCommand(0x80);
+	//lcd_5110_sendCommand(0x40);
+
+	//lcd_5110_sendCommand(0x0c);
 	lcd_5110_sendCommand(0b00001100); //normal mode
+
 	lcd_5110_clear();
-	//printf("LCD_5110 initialize done \n");
 	return;
 }
 

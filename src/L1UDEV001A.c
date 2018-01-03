@@ -645,8 +645,8 @@ int main(void) {
 	if( setupClocking(0, 48000000) ) while (1); //failed to set clock. Lock MCU
 
 
-	l11uxx_spi_pinSetup(1, 38, 26, 13);
-	l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0);
+	//l11uxx_spi_pinSetup(1, 38, 26, 13);
+	//l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 0);
 	//HW_test_lcd_5110_welcome();
 
 	hx1230_instance hx1230_0;
@@ -655,24 +655,26 @@ int main(void) {
 	hx1230_0.disableCS = &hx1230_CS_disable;
 	hx1230_0.enableReset = &hx1230_reset_enable;
 	hx1230_0.disableReset = &hx1230_reset_disable;
-	l11uxx_spi_init(1, 9, 0, 1, 1, 0, 0, 0);
 	GPIOSetDir(1, 29, 1); // CS of nokiaLCD/hx1230
 	GPIOSetDir(1, 28, 1); // reset of ^
-	HW_test_lcd_hx1230(&hx1230_0);
+	//l11uxx_spi_init(1, 9, 0, 1, 1, 0, 0, 0); //works for hx1230
+	//HW_test_lcd_hx1230(&hx1230_0);
+
 
 
 	//buffertester_8(); //does not return
 
 	l11uxx_spi_pinSetup(1, 38, 26, 13);
-	//l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 2); //works well for 320x240rgblcd & ext flash & nokiaLCD
+	//l11uxx_spi_init(1, 8, 0, 1, 1, 0, 0, 2); //works well for 320x240rgblcd & ext flash & nokiaLCD(not correct tho)
 	//l11uxx_spi_init(1, 8, 0, 0, 1, 0, 0, 0);
-	l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?), a specific 9113wifi
+	l11uxx_spi_init(1, 8, 0, 0, 0, 0, 0, 0); //works for NRF (and rgb lcd?), a specific 9113wifi & nokiaLCD
 	//l11uxx_spi_init(1, 8, 0, 1, 0, 0, 0, 0);
 	//l11uxx_spi_init(int SPINumber, int bits, int FRF, int CPOL, int CPHA, int SCR, int MS, int CPSDVSR)
 
 	l11uxx_uart_pinSetup(47, 46); //set up to CH340 //careful, esp is set afterwards
 	l11uxx_uart_init(9600); //upping speed later mby
 
+	HW_test_lcd_5110_with_uptime();
 
 	nrf24l01_instance nrf24Radio01;
 	nrf24Radio01.sendSPIpacket = &nrf24l01_spiSend;
